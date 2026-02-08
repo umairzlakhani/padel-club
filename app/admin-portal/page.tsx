@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -25,9 +27,12 @@ export default function AdminPortal() {
   async function fetchApplications() {
     setLoading(true);
     const { data, error } = await supabase
+      .schema("public")
       .from("applications")
       .select("*")
       .order("created_at", { ascending: false });
+
+    console.log("Supabase Response:", data, error);
 
     if (error) {
       console.error("Fetch error:", JSON.stringify(error, null, 2));
