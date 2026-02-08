@@ -55,13 +55,18 @@ export default function AdminPortal() {
 
   async function handleApprove(id: string) {
     setApprovingId(id);
-    const { error } = await supabase
-      .from("applications")
-      .update({ status: "member" })
-      .eq("id", id);
 
-    if (error) {
-      console.error("Approve error:", JSON.stringify(error, null, 2));
+    const res = await fetch("/api/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+
+    const result = await res.json();
+    console.log("Update result:", { data: result.data, error: result.error });
+
+    if (!res.ok || result.error) {
+      console.error("Approve error:", result.error);
     } else {
       setApplications((prev) =>
         prev.map((app) => (app.id === id ? { ...app, status: "member" } : app))
