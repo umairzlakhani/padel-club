@@ -52,7 +52,7 @@ export default function ApplicationModal() {
     setIsSubmitting(false);
 
     if (dbError) {
-      console.error("Supabase insert error:", dbError);
+      console.error("Detailed Error:", JSON.stringify(dbError, null, 2));
       setError("Something went wrong. Please try again.");
       return;
     }
