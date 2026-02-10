@@ -1,87 +1,59 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
+import Toast from '@/app/components/Toast'
 
 type Tournament = {
   id: string
   name: string
   date: string
+  display_date: string
   venue: string
   format: string
-  entryFee: number
-  maxTeams: number
-  registeredTeams: number
+  entry_fee: number
+  max_teams: number
+  registered_teams: number
   status: 'upcoming' | 'open' | 'full' | 'in_progress' | 'completed'
   description: string
-  prizePool: string
+  prize_pool: string
 }
 
-const MOCK_TOURNAMENTS: Tournament[] = [
+const FALLBACK_TOURNAMENTS: Tournament[] = [
   {
-    id: '1',
-    name: 'KPC Open — February Cup',
-    date: 'Sat, 22 Feb 2026',
-    venue: 'Legends Arena, DHA Phase 6',
-    format: 'Round Robin + Knockout',
-    entryFee: 5000,
-    maxTeams: 16,
-    registeredTeams: 11,
-    status: 'open',
+    id: '1', name: 'KPC Open — February Cup', date: '2026-02-22', display_date: 'Sat, 22 Feb 2026',
+    venue: 'Legends Arena, DHA Phase 6', format: 'Round Robin + Knockout', entry_fee: 5000,
+    max_teams: 16, registered_teams: 11, status: 'open',
     description: 'The monthly flagship tournament of the Karachi Padel Circuit. Open to all skill levels with seeded brackets.',
-    prizePool: 'PKR 50,000',
+    prize_pool: 'PKR 50,000',
   },
   {
-    id: '2',
-    name: 'Beginners Bash 2.0',
-    date: 'Sun, 2 Mar 2026',
-    venue: 'Viva Padel, Clifton',
-    format: 'Round Robin',
-    entryFee: 3000,
-    maxTeams: 12,
-    registeredTeams: 7,
-    status: 'open',
-    description: 'Exclusive tournament for players rated 1.0–2.5. Great atmosphere, perfect for your first competitive experience.',
-    prizePool: 'PKR 25,000',
+    id: '2', name: 'Beginners Bash 2.0', date: '2026-03-02', display_date: 'Sun, 2 Mar 2026',
+    venue: 'Viva Padel, Clifton', format: 'Round Robin', entry_fee: 3000,
+    max_teams: 12, registered_teams: 7, status: 'open',
+    description: 'Exclusive tournament for players rated 1.0-2.5. Great atmosphere, perfect for your first competitive experience.',
+    prize_pool: 'PKR 25,000',
   },
   {
-    id: '3',
-    name: 'Corporate Challenge',
-    date: 'Fri, 14 Mar 2026',
-    venue: 'Greenwich Padel, DHA Phase 8',
-    format: 'Knockout',
-    entryFee: 10000,
-    maxTeams: 8,
-    registeredTeams: 8,
-    status: 'full',
+    id: '3', name: 'Corporate Challenge', date: '2026-03-14', display_date: 'Fri, 14 Mar 2026',
+    venue: 'Greenwich Padel, DHA Phase 8', format: 'Knockout', entry_fee: 10000,
+    max_teams: 8, registered_teams: 8, status: 'full',
     description: 'Inter-company padel showdown. Register as a corporate pair and compete for the Corporate Cup.',
-    prizePool: 'PKR 100,000',
+    prize_pool: 'PKR 100,000',
   },
   {
-    id: '4',
-    name: 'KPC Pro Series — March',
-    date: 'Sat, 22 Mar 2026',
-    venue: 'Padelverse, Bukhari Commercial',
-    format: 'Double Elimination',
-    entryFee: 8000,
-    maxTeams: 16,
-    registeredTeams: 3,
-    status: 'upcoming',
+    id: '4', name: 'KPC Pro Series — March', date: '2026-03-22', display_date: 'Sat, 22 Mar 2026',
+    venue: 'Padelverse, Bukhari Commercial', format: 'Double Elimination', entry_fee: 8000,
+    max_teams: 16, registered_teams: 3, status: 'upcoming',
     description: 'High-level competitive tournament for players rated 3.5+. Streamed live on KPC social channels.',
-    prizePool: 'PKR 75,000',
+    prize_pool: 'PKR 75,000',
   },
   {
-    id: '5',
-    name: 'Valentine Mixer',
-    date: 'Sat, 15 Feb 2026',
-    venue: 'Legends Arena, DHA Phase 6',
-    format: 'Mixed Doubles Round Robin',
-    entryFee: 6000,
-    maxTeams: 12,
-    registeredTeams: 12,
-    status: 'full',
+    id: '5', name: 'Valentine Mixer', date: '2026-02-15', display_date: 'Sat, 15 Feb 2026',
+    venue: 'Legends Arena, DHA Phase 6', format: 'Mixed Doubles Round Robin', entry_fee: 6000,
+    max_teams: 12, registered_teams: 12, status: 'full',
     description: 'Mixed doubles tournament with randomized partner assignments. Social event with dinner included.',
-    prizePool: 'PKR 40,000',
+    prize_pool: 'PKR 40,000',
   },
 ]
 
@@ -108,31 +80,129 @@ function StatusBadge({ status }: { status: Tournament['status'] }) {
 }
 
 export default function TournamentsPage() {
-  const [tournaments, setTournaments] = useState<Tournament[]>(MOCK_TOURNAMENTS)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [filter, setFilter] = useState<'all' | 'open' | 'upcoming'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [registeredIds, setRegisteredIds] = useState<string[]>([])
+  const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
+  const [registering, setRegistering] = useState<string | null>(null)
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type })
+  }, [])
 
   useEffect(() => {
-    // Try loading from Supabase tournaments table
-    async function load() {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+
+        // Load user's registrations
+        const { data: regs } = await supabase
+          .from('tournament_registrations')
+          .select('tournament_id')
+          .eq('user_id', user.id)
+        if (regs) {
+          setRegisteredIds(new Set(regs.map((r: any) => r.tournament_id)))
+        }
+      }
+
+      // Fetch tournaments from Supabase
       const { data, error } = await supabase
         .from('tournaments')
         .select('*')
         .order('date', { ascending: true })
+
       if (!error && data && data.length > 0) {
-        // Transform when real table exists
+        setTournaments(
+          data.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            date: t.date,
+            display_date: t.display_date,
+            venue: t.venue,
+            format: t.format,
+            entry_fee: t.entry_fee,
+            max_teams: t.max_teams,
+            registered_teams: t.registered_teams,
+            status: t.status,
+            description: t.description || '',
+            prize_pool: t.prize_pool || '',
+          }))
+        )
+      } else {
+        // Fallback to hardcoded data if table doesn't exist yet
+        setTournaments(FALLBACK_TOURNAMENTS)
       }
+      setLoading(false)
     }
-    load()
+    init()
   }, [])
+
+  async function handleRegister(tournamentId: string) {
+    if (!userId) {
+      showToast('Please sign in to register', 'error')
+      return
+    }
+    setRegistering(tournamentId)
+
+    // Insert registration
+    const { error: regError } = await supabase
+      .from('tournament_registrations')
+      .insert({ tournament_id: tournamentId, user_id: userId })
+
+    if (regError) {
+      if (regError.code === '23505') {
+        showToast('You are already registered', 'error')
+      } else {
+        showToast('Failed to register', 'error')
+      }
+      setRegistering(null)
+      return
+    }
+
+    // Increment registered_teams count
+    const tournament = tournaments.find((t) => t.id === tournamentId)
+    if (tournament) {
+      const newCount = tournament.registered_teams + 1
+      const newStatus = newCount >= tournament.max_teams ? 'full' : tournament.status
+      await supabase
+        .from('tournaments')
+        .update({ registered_teams: newCount, status: newStatus })
+        .eq('id', tournamentId)
+
+      setTournaments(
+        tournaments.map((t) =>
+          t.id === tournamentId ? { ...t, registered_teams: newCount, status: newStatus as Tournament['status'] } : t
+        )
+      )
+    }
+
+    setRegisteredIds(new Set([...registeredIds, tournamentId]))
+    showToast('Registered successfully!')
+    setRegistering(null)
+  }
 
   const filtered = filter === 'all'
     ? tournaments
     : tournaments.filter((t) => t.status === filter)
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
+          <span className="text-white/40 text-sm font-medium">Loading tournaments...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24">
         {/* Header */}
         <div className="pt-12 pb-4 px-6">
@@ -166,9 +236,10 @@ export default function TournamentsPage() {
           )}
           {filtered.map((tournament) => {
             const isExpanded = expandedId === tournament.id
-            const isRegistered = registeredIds.includes(tournament.id)
-            const spotsLeft = tournament.maxTeams - tournament.registeredTeams
-            const capacityPct = (tournament.registeredTeams / tournament.maxTeams) * 100
+            const isRegistered = registeredIds.has(tournament.id)
+            const isRegistering = registering === tournament.id
+            const spotsLeft = tournament.max_teams - tournament.registered_teams
+            const capacityPct = (tournament.registered_teams / tournament.max_teams) * 100
 
             return (
               <div
@@ -182,7 +253,7 @@ export default function TournamentsPage() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0 pr-3">
                       <h3 className="text-sm font-bold">{tournament.name}</h3>
-                      <p className="text-white/30 text-xs mt-1">{tournament.date}</p>
+                      <p className="text-white/30 text-xs mt-1">{tournament.display_date}</p>
                     </div>
                     <StatusBadge status={tournament.status} />
                   </div>
@@ -201,7 +272,7 @@ export default function TournamentsPage() {
                   <div className="mt-3">
                     <div className="flex justify-between items-center mb-1.5">
                       <span className="text-[10px] text-white/20 font-medium">
-                        {tournament.registeredTeams}/{tournament.maxTeams} teams
+                        {tournament.registered_teams}/{tournament.max_teams} teams
                       </span>
                       {spotsLeft > 0 && spotsLeft <= 4 && (
                         <span className="text-[10px] text-orange-400 font-semibold">
@@ -233,11 +304,11 @@ export default function TournamentsPage() {
                       </div>
                       <div className="bg-white/5 rounded-xl p-3 text-center">
                         <span className="text-[10px] text-white/20 font-medium block">Entry</span>
-                        <span className="text-[11px] font-bold mt-0.5 block">PKR {tournament.entryFee.toLocaleString()}</span>
+                        <span className="text-[11px] font-bold mt-0.5 block">PKR {tournament.entry_fee.toLocaleString()}</span>
                       </div>
                       <div className="bg-white/5 rounded-xl p-3 text-center">
                         <span className="text-[10px] text-white/20 font-medium block">Prize</span>
-                        <span className="text-[11px] font-bold text-[#00ff88] mt-0.5 block">{tournament.prizePool}</span>
+                        <span className="text-[11px] font-bold text-[#00ff88] mt-0.5 block">{tournament.prize_pool}</span>
                       </div>
                     </div>
 
@@ -251,10 +322,11 @@ export default function TournamentsPage() {
                       </button>
                     ) : tournament.status === 'open' ? (
                       <button
-                        onClick={() => setRegisteredIds([...registeredIds, tournament.id])}
-                        className="w-full py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all"
+                        onClick={() => handleRegister(tournament.id)}
+                        disabled={isRegistering}
+                        className="w-full py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all disabled:opacity-50"
                       >
-                        Register — PKR {tournament.entryFee.toLocaleString()}
+                        {isRegistering ? 'Registering...' : `Register — PKR ${tournament.entry_fee.toLocaleString()}`}
                       </button>
                     ) : (
                       <button className="w-full py-3 bg-blue-500/10 text-blue-400 font-bold rounded-xl text-xs uppercase tracking-wider border border-blue-500/20 cursor-default">

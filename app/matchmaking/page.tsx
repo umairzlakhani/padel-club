@@ -1,7 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
+import Toast from '@/app/components/Toast'
+
+type PlayerInfo = { id: string; full_name: string; skill_level: number }
 
 type OpenMatch = {
   id: string
@@ -10,71 +13,12 @@ type OpenMatch = {
   venue: string
   skill_min: number
   skill_max: number
-  players: { name: string; initial: string; level: number }[]
   max_players: number
+  current_players: number
+  creator_id: string
   creator_name: string
+  players: PlayerInfo[]
 }
-
-const MOCK_MATCHES: OpenMatch[] = [
-  {
-    id: '1',
-    date: 'Tue, 11 Feb',
-    time: '7:00 PM',
-    venue: 'Legends Arena',
-    skill_min: 2.0,
-    skill_max: 3.0,
-    players: [
-      { name: 'Ali K.', initial: 'A', level: 2.5 },
-      { name: 'Raza S.', initial: 'R', level: 2.3 },
-      { name: 'Hassan M.', initial: 'H', level: 2.7 },
-    ],
-    max_players: 4,
-    creator_name: 'Ali K.',
-  },
-  {
-    id: '2',
-    date: 'Wed, 12 Feb',
-    time: '8:30 PM',
-    venue: 'Viva Padel',
-    skill_min: 2.5,
-    skill_max: 3.5,
-    players: [
-      { name: 'Farhan M.', initial: 'F', level: 3.0 },
-    ],
-    max_players: 4,
-    creator_name: 'Farhan M.',
-  },
-  {
-    id: '3',
-    date: 'Thu, 13 Feb',
-    time: '6:00 PM',
-    venue: 'Padelverse',
-    skill_min: 1.5,
-    skill_max: 2.5,
-    players: [
-      { name: 'Zain T.', initial: 'Z', level: 2.0 },
-      { name: 'Omar R.', initial: 'O', level: 1.8 },
-    ],
-    max_players: 4,
-    creator_name: 'Zain T.',
-  },
-  {
-    id: '4',
-    date: 'Fri, 14 Feb',
-    time: '9:00 PM',
-    venue: 'Greenwich Padel',
-    skill_min: 2.0,
-    skill_max: 3.0,
-    players: [
-      { name: 'Kabir A.', initial: 'K', level: 2.6 },
-      { name: 'Saad L.', initial: 'S', level: 2.4 },
-      { name: 'Bilal N.', initial: 'B', level: 2.8 },
-      { name: 'Imran H.', initial: 'I', level: 2.5 },
-    ],
-    max_players: 4,
-    creator_name: 'Kabir A.',
-  },
-]
 
 function SkillBadge({ level }: { level: number }) {
   return (
@@ -85,44 +29,237 @@ function SkillBadge({ level }: { level: number }) {
 }
 
 export default function MatchmakingPage() {
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userName, setUserName] = useState('')
   const [userLevel, setUserLevel] = useState(2.5)
-  const [matches, setMatches] = useState<OpenMatch[]>(MOCK_MATCHES)
+  const [matches, setMatches] = useState<OpenMatch[]>([])
   const [filter, setFilter] = useState<'all' | 'my-level'>('my-level')
   const [showCreate, setShowCreate] = useState(false)
-  const [joinedMatch, setJoinedMatch] = useState<string | null>(null)
+  const [joinedMatchIds, setJoinedMatchIds] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
+  const [joining, setJoining] = useState<string | null>(null)
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
+
+  // Create match form state
+  const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('')
+  const [newVenue, setNewVenue] = useState('')
+  const [newSkillMin, setNewSkillMin] = useState('2.0')
+  const [newSkillMax, setNewSkillMax] = useState('3.0')
+  const [creating, setCreating] = useState(false)
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type })
+  }, [])
+
+  const loadMatches = useCallback(async (currentUserId: string | null) => {
+    // Fetch open matches
+    const { data: dbMatches, error } = await supabase
+      .from('matches')
+      .select('*')
+      .in('status', ['open', 'full'])
+      .order('date', { ascending: true })
+
+    if (error || !dbMatches) {
+      setLoading(false)
+      return
+    }
+
+    // For each match, fetch its players
+    const matchesWithPlayers: OpenMatch[] = await Promise.all(
+      dbMatches.map(async (m: any) => {
+        // Get players in this match
+        const { data: mpData } = await supabase
+          .from('match_players')
+          .select('player_id')
+          .eq('match_id', m.id)
+
+        const playerIds = (mpData || []).map((mp: any) => mp.player_id)
+
+        // Get player details
+        let players: PlayerInfo[] = []
+        if (playerIds.length > 0) {
+          const { data: playerData } = await supabase
+            .from('applications')
+            .select('id, full_name, skill_level')
+            .in('id', playerIds)
+          players = (playerData || []).map((p: any) => ({
+            id: p.id,
+            full_name: p.full_name,
+            skill_level: parseFloat(p.skill_level) || 2.5,
+          }))
+        }
+
+        // Get creator name
+        const { data: creatorData } = await supabase
+          .from('applications')
+          .select('full_name')
+          .eq('id', m.creator_id)
+          .single()
+
+        return {
+          id: m.id,
+          date: new Date(m.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }),
+          time: m.time,
+          venue: m.venue,
+          skill_min: parseFloat(m.skill_min),
+          skill_max: parseFloat(m.skill_max),
+          max_players: m.max_players,
+          current_players: m.current_players,
+          creator_id: m.creator_id,
+          creator_name: creatorData?.full_name || 'Unknown',
+          players,
+        }
+      })
+    )
+
+    setMatches(matchesWithPlayers)
+
+    // Track which matches current user has joined
+    if (currentUserId) {
+      const joined = new Set<string>()
+      matchesWithPlayers.forEach((m) => {
+        if (m.players.some((p) => p.id === currentUserId)) {
+          joined.add(m.id)
+        }
+      })
+      setJoinedMatchIds(joined)
+    }
+
+    setLoading(false)
+  }, [])
 
   useEffect(() => {
-    async function load() {
+    async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        setUserId(user.id)
         const { data } = await supabase
           .from('applications')
-          .select('skill_level')
+          .select('full_name, skill_level')
           .eq('id', user.id)
           .single()
-        if (data?.skill_level) setUserLevel(parseFloat(data.skill_level))
+        if (data) {
+          setUserName(data.full_name || '')
+          if (data.skill_level) setUserLevel(parseFloat(data.skill_level))
+        }
+      }
+      await loadMatches(user?.id || null)
+    }
+    init()
+  }, [loadMatches])
+
+  async function handleJoinMatch(matchId: string) {
+    if (!userId) {
+      showToast('Please sign in to join a match', 'error')
+      return
+    }
+    setJoining(matchId)
+    try {
+      // Insert into match_players
+      const { error: joinError } = await supabase
+        .from('match_players')
+        .insert({ match_id: matchId, player_id: userId })
+
+      if (joinError) {
+        if (joinError.code === '23505') {
+          showToast('You already joined this match', 'error')
+        } else {
+          showToast('Failed to join match', 'error')
+        }
+        setJoining(null)
+        return
       }
 
-      // Try loading from Supabase matches table; fall back to mock data
-      const { data: dbMatches, error } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('status', 'open')
-        .order('date', { ascending: true })
-      if (!error && dbMatches && dbMatches.length > 0) {
-        // Transform DB rows to our shape when real table exists
-        // For now, mock data is used
+      // Increment current_players on the match
+      const match = matches.find((m) => m.id === matchId)
+      if (match) {
+        const newCount = match.current_players + 1
+        const newStatus = newCount >= match.max_players ? 'full' : 'open'
+        await supabase
+          .from('matches')
+          .update({ current_players: newCount, status: newStatus })
+          .eq('id', matchId)
       }
+
+      showToast('You joined the match!')
+      setJoinedMatchIds(new Set([...joinedMatchIds, matchId]))
+      await loadMatches(userId)
+    } catch {
+      showToast('Something went wrong', 'error')
     }
-    load()
-  }, [])
+    setJoining(null)
+  }
+
+  async function handleCreateMatch() {
+    if (!userId) {
+      showToast('Please sign in to create a match', 'error')
+      return
+    }
+    if (!newDate || !newTime || !newVenue) {
+      showToast('Please fill in all fields', 'error')
+      return
+    }
+    setCreating(true)
+    try {
+      // Insert the match
+      const { data: newMatch, error } = await supabase
+        .from('matches')
+        .insert({
+          creator_id: userId,
+          date: newDate,
+          time: newTime,
+          venue: newVenue,
+          skill_min: parseFloat(newSkillMin),
+          skill_max: parseFloat(newSkillMax),
+          max_players: 4,
+          current_players: 1,
+          status: 'open',
+        })
+        .select()
+        .single()
+
+      if (error) {
+        showToast('Failed to create match', 'error')
+        setCreating(false)
+        return
+      }
+
+      // Add creator as first player
+      await supabase
+        .from('match_players')
+        .insert({ match_id: newMatch.id, player_id: userId })
+
+      showToast('Match created! Others can now join.')
+      setShowCreate(false)
+      setNewDate('')
+      setNewTime('')
+      setNewVenue('')
+      await loadMatches(userId)
+    } catch {
+      showToast('Something went wrong', 'error')
+    }
+    setCreating(false)
+  }
 
   const filtered = filter === 'my-level'
     ? matches.filter((m) => userLevel >= m.skill_min && userLevel <= m.skill_max)
     : matches
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
+          <span className="text-white/40 text-sm font-medium">Loading matches...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24">
         {/* Header */}
         <div className="pt-12 pb-4 px-6">
@@ -175,6 +312,8 @@ export default function MatchmakingPage() {
                 <label className="text-[10px] text-white/30 uppercase font-semibold block mb-1">Date</label>
                 <input
                   type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#00ff88]/50 focus:outline-none"
                 />
               </div>
@@ -182,13 +321,19 @@ export default function MatchmakingPage() {
                 <label className="text-[10px] text-white/30 uppercase font-semibold block mb-1">Time</label>
                 <input
                   type="time"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#00ff88]/50 focus:outline-none"
                 />
               </div>
             </div>
             <div>
               <label className="text-[10px] text-white/30 uppercase font-semibold block mb-1">Venue</label>
-              <select className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#00ff88]/50 focus:outline-none">
+              <select
+                value={newVenue}
+                onChange={(e) => setNewVenue(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#00ff88]/50 focus:outline-none"
+              >
                 <option value="">Select venue</option>
                 <option>Legends Arena</option>
                 <option>Viva Padel</option>
@@ -204,7 +349,8 @@ export default function MatchmakingPage() {
                   step="0.5"
                   min="1.0"
                   max="5.0"
-                  defaultValue="2.0"
+                  value={newSkillMin}
+                  onChange={(e) => setNewSkillMin(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#00ff88]/50 focus:outline-none"
                 />
               </div>
@@ -215,13 +361,18 @@ export default function MatchmakingPage() {
                   step="0.5"
                   min="1.0"
                   max="5.0"
-                  defaultValue="3.0"
+                  value={newSkillMax}
+                  onChange={(e) => setNewSkillMax(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#00ff88]/50 focus:outline-none"
                 />
               </div>
             </div>
-            <button className="w-full py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all">
-              Create Match
+            <button
+              onClick={handleCreateMatch}
+              disabled={creating}
+              className="w-full py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all disabled:opacity-50"
+            >
+              {creating ? 'Creating...' : 'Create Match'}
             </button>
           </div>
         )}
@@ -230,14 +381,15 @@ export default function MatchmakingPage() {
         <div className="px-6 space-y-3">
           {filtered.length === 0 && (
             <div className="text-center py-16">
-              <p className="text-white/20 text-sm">No matches at your level right now</p>
+              <p className="text-white/20 text-sm">No matches found</p>
               <p className="text-white/10 text-xs mt-1">Create one and others will join!</p>
             </div>
           )}
           {filtered.map((match) => {
-            const spotsLeft = match.max_players - match.players.length
-            const isFull = spotsLeft === 0
-            const hasJoined = joinedMatch === match.id
+            const spotsLeft = match.max_players - match.current_players
+            const isFull = spotsLeft <= 0
+            const hasJoined = joinedMatchIds.has(match.id)
+            const isJoining = joining === match.id
 
             return (
               <div key={match.id} className="bg-[#111] rounded-2xl border border-white/5 overflow-hidden hover:border-white/10 transition-all">
@@ -257,16 +409,16 @@ export default function MatchmakingPage() {
 
                   {/* Player Slots */}
                   <div className="flex items-center gap-2 mb-3">
-                    {match.players.map((player, i) => (
+                    {match.players.map((player) => (
                       <div
-                        key={i}
+                        key={player.id}
                         className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border border-white/10 flex items-center justify-center"
-                        title={`${player.name} (${player.level})`}
+                        title={`${player.full_name} (${player.skill_level})`}
                       >
-                        <span className="text-xs font-bold text-white/60">{player.initial}</span>
+                        <span className="text-xs font-bold text-white/60">{player.full_name?.charAt(0) || '?'}</span>
                       </div>
                     ))}
-                    {Array.from({ length: spotsLeft }).map((_, i) => (
+                    {Array.from({ length: Math.max(0, spotsLeft) }).map((_, i) => (
                       <div
                         key={`empty-${i}`}
                         className="w-10 h-10 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center"
@@ -277,7 +429,7 @@ export default function MatchmakingPage() {
                       </div>
                     ))}
                     <span className="text-[10px] text-white/20 font-medium ml-auto">
-                      {match.players.length}/{match.max_players} players
+                      {match.current_players}/{match.max_players} players
                     </span>
                   </div>
 
@@ -292,10 +444,11 @@ export default function MatchmakingPage() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => setJoinedMatch(match.id)}
-                      className="w-full py-2.5 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all"
+                      onClick={() => handleJoinMatch(match.id)}
+                      disabled={isJoining}
+                      className="w-full py-2.5 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all disabled:opacity-50"
                     >
-                      Join Match — {spotsLeft} {spotsLeft === 1 ? 'spot' : 'spots'} left
+                      {isJoining ? 'Joining...' : `Join Match — ${spotsLeft} ${spotsLeft === 1 ? 'spot' : 'spots'} left`}
                     </button>
                   )}
                 </div>

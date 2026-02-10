@@ -1,6 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
+import Toast from '@/app/components/Toast'
 
 type Coach = {
   id: string
@@ -13,15 +15,11 @@ type Coach = {
   availability: { day: string; slots: string[] }[]
 }
 
-const COACHES: Coach[] = [
+const FALLBACK_COACHES: Coach[] = [
   {
-    id: 'nameer',
-    name: 'Nameer Shamsi',
-    specialization: 'Advanced Tactics & Strategy',
+    id: 'nameer', name: 'Nameer Shamsi', specialization: 'Advanced Tactics & Strategy',
     bio: 'Former national-level player with 10+ years of coaching experience. Specializes in advanced shot placement, wall play, and competitive match strategy.',
-    level: 'Elite',
-    rate: 8000,
-    initial: 'NS',
+    level: 'Elite', rate: 8000, initial: 'NS',
     availability: [
       { day: 'Mon', slots: ['5:00 PM', '6:00 PM', '7:00 PM'] },
       { day: 'Wed', slots: ['5:00 PM', '6:00 PM'] },
@@ -30,13 +28,9 @@ const COACHES: Coach[] = [
     ],
   },
   {
-    id: 'azhar',
-    name: 'Azhar Katchi',
-    specialization: 'Beginner & Intermediate Development',
+    id: 'azhar', name: 'Azhar Katchi', specialization: 'Beginner & Intermediate Development',
     bio: 'Certified padel instructor focused on building strong fundamentals. Perfect for new players looking to develop proper technique and court awareness.',
-    level: 'Pro',
-    rate: 6000,
-    initial: 'AK',
+    level: 'Pro', rate: 6000, initial: 'AK',
     availability: [
       { day: 'Tue', slots: ['6:00 PM', '7:00 PM', '8:00 PM'] },
       { day: 'Thu', slots: ['5:00 PM', '6:00 PM', '7:00 PM'] },
@@ -44,13 +38,9 @@ const COACHES: Coach[] = [
     ],
   },
   {
-    id: 'farhan',
-    name: 'Farhan Mustafa',
-    specialization: 'Fitness & Power Game',
+    id: 'farhan', name: 'Farhan Mustafa', specialization: 'Fitness & Power Game',
     bio: 'Combines physical conditioning with padel training. Specializes in building explosive power, endurance, and an aggressive playing style.',
-    level: 'Pro',
-    rate: 7000,
-    initial: 'FM',
+    level: 'Pro', rate: 7000, initial: 'FM',
     availability: [
       { day: 'Mon', slots: ['7:00 PM', '8:00 PM'] },
       { day: 'Wed', slots: ['6:00 PM', '7:00 PM', '8:00 PM'] },
@@ -65,7 +55,6 @@ function CoachCard({ coach, onSelect }: { coach: Coach; onSelect: () => void }) 
     <div className="bg-[#111] rounded-2xl border border-white/5 overflow-hidden hover:border-white/10 transition-all">
       <div className="p-5">
         <div className="flex gap-4">
-          {/* Avatar */}
           <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border border-white/10 flex items-center justify-center shrink-0">
             <span className="text-lg font-bold text-white/50">{coach.initial}</span>
           </div>
@@ -87,7 +76,6 @@ function CoachCard({ coach, onSelect }: { coach: Coach; onSelect: () => void }) 
         </div>
         <p className="text-white/25 text-[12px] leading-relaxed mt-3">{coach.bio}</p>
 
-        {/* Next available slots preview */}
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           {coach.availability.slice(0, 3).map((a) => (
             <span key={a.day} className="text-[10px] font-medium text-white/20 bg-white/5 px-2 py-1 rounded-md">
@@ -107,13 +95,22 @@ function CoachCard({ coach, onSelect }: { coach: Coach; onSelect: () => void }) 
   )
 }
 
-function ScheduleView({ coach, onBack, onBook }: { coach: Coach; onBack: () => void; onBook: (day: string, slot: string) => void }) {
+function ScheduleView({
+  coach,
+  bookedKeys,
+  bookingSlot,
+  onBook,
+}: {
+  coach: Coach
+  bookedKeys: Set<string>
+  bookingSlot: string | null
+  onBook: (day: string, slot: string) => void
+}) {
   const [selectedDay, setSelectedDay] = useState(coach.availability[0]?.day || '')
   const daySlots = coach.availability.find((a) => a.day === selectedDay)?.slots || []
 
   return (
     <div>
-      {/* Coach header */}
       <div className="px-6 mb-5">
         <div className="flex items-center gap-4 bg-[#111] rounded-2xl border border-white/5 p-4">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border border-white/10 flex items-center justify-center shrink-0">
@@ -126,7 +123,6 @@ function ScheduleView({ coach, onBack, onBook }: { coach: Coach; onBack: () => v
         </div>
       </div>
 
-      {/* Day tabs */}
       <div className="px-6 mb-4">
         <div className="flex gap-2 overflow-x-auto pb-1">
           {coach.availability.map((a) => (
@@ -145,26 +141,38 @@ function ScheduleView({ coach, onBack, onBook }: { coach: Coach; onBack: () => v
         </div>
       </div>
 
-      {/* Time slots */}
       <div className="px-6">
         <h3 className="text-xs uppercase font-bold tracking-wider text-white/30 mb-3">
           {selectedDay} — Available Sessions
         </h3>
         <div className="space-y-2">
-          {daySlots.map((slot) => (
-            <div key={slot} className="flex items-center justify-between bg-[#111] rounded-xl border border-white/5 p-4 hover:border-white/10 transition-all">
-              <div>
-                <span className="text-sm font-bold">{slot}</span>
-                <span className="text-[10px] text-white/20 font-medium ml-2">60 min session</span>
+          {daySlots.map((slot) => {
+            const key = `${coach.id}-${selectedDay}-${slot}`
+            const isBooked = bookedKeys.has(key)
+            const isBooking = bookingSlot === key
+
+            return (
+              <div key={slot} className="flex items-center justify-between bg-[#111] rounded-xl border border-white/5 p-4 hover:border-white/10 transition-all">
+                <div>
+                  <span className="text-sm font-bold">{slot}</span>
+                  <span className="text-[10px] text-white/20 font-medium ml-2">60 min session</span>
+                </div>
+                {isBooked ? (
+                  <span className="px-4 py-2 bg-[#00ff88]/10 text-[#00ff88] font-bold rounded-lg text-[11px] uppercase tracking-wider border border-[#00ff88]/20">
+                    Booked ✓
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => onBook(selectedDay, slot)}
+                    disabled={isBooking}
+                    className="px-4 py-2 bg-[#00ff88] text-black font-bold rounded-lg text-[11px] uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all disabled:opacity-50"
+                  >
+                    {isBooking ? '...' : 'Book'}
+                  </button>
+                )}
               </div>
-              <button
-                onClick={() => onBook(selectedDay, slot)}
-                className="px-4 py-2 bg-[#00ff88] text-black font-bold rounded-lg text-[11px] uppercase tracking-wider hover:bg-[#00ff88]/90 transition-all"
-              >
-                Book
-              </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="mt-4 bg-white/[0.02] rounded-xl border border-white/5 p-4">
@@ -179,12 +187,92 @@ function ScheduleView({ coach, onBack, onBook }: { coach: Coach; onBack: () => v
 }
 
 export default function CoachingPage() {
+  const [userId, setUserId] = useState<string | null>(null)
+  const [coaches, setCoaches] = useState<Coach[]>(FALLBACK_COACHES)
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
   const [bookingConfirm, setBookingConfirm] = useState<{ coach: Coach; day: string; slot: string } | null>(null)
-  const [bookedSessions, setBookedSessions] = useState<string[]>([])
+  const [bookedKeys, setBookedKeys] = useState<Set<string>>(new Set())
+  const [bookingSlot, setBookingSlot] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type })
+  }, [])
+
+  useEffect(() => {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+
+        // Load user's existing coaching bookings
+        const { data: bookings } = await supabase
+          .from('coaching_bookings')
+          .select('coach_id, day, time_slot')
+          .eq('user_id', user.id)
+          .eq('status', 'confirmed')
+
+        if (bookings) {
+          const keys = new Set(bookings.map((b: any) => `${b.coach_id}-${b.day}-${b.time_slot}`))
+          setBookedKeys(keys)
+        }
+      }
+
+      // Try loading coaches from Supabase
+      const { data: dbCoaches, error } = await supabase
+        .from('coaches')
+        .select('*')
+      if (!error && dbCoaches && dbCoaches.length > 0) {
+        setCoaches(
+          dbCoaches.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            specialization: c.specialization,
+            bio: c.bio || '',
+            level: c.level,
+            rate: c.rate,
+            initial: c.initial,
+            availability: typeof c.availability === 'string' ? JSON.parse(c.availability) : c.availability,
+          }))
+        )
+      }
+    }
+    init()
+  }, [])
+
+  async function handleConfirmBooking() {
+    if (!userId || !bookingConfirm) return
+    setConfirming(true)
+
+    const { coach, day, slot } = bookingConfirm
+
+    const { error } = await supabase
+      .from('coaching_bookings')
+      .insert({
+        user_id: userId,
+        coach_id: coach.id,
+        day: day,
+        time_slot: slot,
+        price: coach.rate,
+        status: 'confirmed',
+      })
+
+    if (error) {
+      showToast(error.code === '23505' ? 'You already booked this slot' : 'Failed to book session', 'error')
+    } else {
+      const key = `${coach.id}-${day}-${slot}`
+      setBookedKeys(new Set([...bookedKeys, key]))
+      showToast(`Session booked with ${coach.name}!`)
+    }
+
+    setBookingConfirm(null)
+    setConfirming(false)
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24">
         {/* Header */}
         <div className="pt-12 pb-4 px-6">
@@ -208,17 +296,16 @@ export default function CoachingPage() {
         </div>
 
         {!selectedCoach ? (
-          /* ─── Coach Cards ─── */
           <div className="px-6 space-y-3">
-            {COACHES.map((coach) => (
+            {coaches.map((coach) => (
               <CoachCard key={coach.id} coach={coach} onSelect={() => setSelectedCoach(coach)} />
             ))}
           </div>
         ) : (
-          /* ─── Schedule View ─── */
           <ScheduleView
             coach={selectedCoach}
-            onBack={() => setSelectedCoach(null)}
+            bookedKeys={bookedKeys}
+            bookingSlot={bookingSlot}
             onBook={(day, slot) => setBookingConfirm({ coach: selectedCoach, day, slot })}
           />
         )}
@@ -254,19 +341,17 @@ export default function CoachingPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setBookingConfirm(null)}
+                  disabled={confirming}
                   className="flex-1 py-3 bg-white/5 text-white/50 font-bold rounded-xl text-sm"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    const key = `${bookingConfirm.coach.id}-${bookingConfirm.day}-${bookingConfirm.slot}`
-                    setBookedSessions([...bookedSessions, key])
-                    setBookingConfirm(null)
-                  }}
-                  className="flex-1 py-3 bg-[#00ff88] text-black font-bold rounded-xl text-sm"
+                  onClick={handleConfirmBooking}
+                  disabled={confirming}
+                  className="flex-1 py-3 bg-[#00ff88] text-black font-bold rounded-xl text-sm disabled:opacity-50"
                 >
-                  Confirm Booking
+                  {confirming ? 'Booking...' : 'Confirm Booking'}
                 </button>
               </div>
             </div>
