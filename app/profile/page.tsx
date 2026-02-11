@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
+import Toast from '@/app/components/Toast'
 
 // Mock match history — replace with real data when the matches table exists
 const MOCK_MATCHES = [
@@ -183,6 +184,15 @@ export default function ProfilePage() {
   const [p, setP] = useState<any>(null)
   const [activeTab, setActiveTab] = useState('Activity')
   const [loading, setLoading] = useState(true)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type })
+  }, [])
 
   useEffect(() => {
     async function getProfile() {
@@ -190,13 +200,73 @@ export default function ProfilePage() {
         data: { user },
       } = await supabase.auth.getUser()
       if (user) {
+        setUserId(user.id)
         const { data } = await supabase.from('applications').select('*').eq('id', user.id).single()
         setP(data)
+        if (data?.avatar_url) setAvatarUrl(data.avatar_url)
       }
       setLoading(false)
     }
     getProfile()
   }, [])
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !userId) return
+
+    // Validate file type client-side
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      showToast('Please upload a JPEG, PNG, WebP, or GIF image', 'error')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image must be under 5MB', 'error')
+      return
+    }
+
+    setUploading(true)
+    try {
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        showToast('Please sign in again', 'error')
+        setUploading(false)
+        return
+      }
+
+      // Upload via server-side API route (bypasses storage RLS)
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload-avatar', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: formData,
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        showToast(result.error || 'Failed to upload image', 'error')
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+
+      // Update UI immediately — no page refresh needed
+      const cacheBustedUrl = result.url + '?t=' + Date.now()
+      setAvatarUrl(cacheBustedUrl)
+      setP((prev: any) => ({ ...prev, avatar_url: cacheBustedUrl }))
+      showToast('Profile photo updated!')
+    } catch (err) {
+      console.error('Avatar upload error:', err)
+      showToast('Something went wrong', 'error')
+    }
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   const skillLevel = parseFloat(p?.skill_level) || 2.5
   const matchesPlayed = p?.matches_played || 0
@@ -215,6 +285,14 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={handleAvatarUpload}
+      />
       <div className="w-full max-w-[480px] min-h-screen relative">
         {/* ─── Header / Profile Card ─── */}
         <div className="pt-12 pb-6 px-6">
@@ -236,16 +314,41 @@ export default function ProfilePage() {
           {/* Avatar + Name */}
           <div className="flex flex-col items-center">
             <div className="relative mb-4">
-              <div className="w-24 h-24 bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-full border-2 border-white/10 flex items-center justify-center">
-                <span className="text-3xl font-bold text-white/60">{p?.full_name?.charAt(0) || '?'}</span>
-              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="relative w-24 h-24 rounded-full group cursor-pointer"
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Profile"
+                    className="w-24 h-24 rounded-full object-cover border-2 border-white/10"
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-full border-2 border-white/10 flex items-center justify-center">
+                    <span className="text-3xl font-bold text-white/60">{p?.full_name?.charAt(0) || '?'}</span>
+                  </div>
+                )}
+                {/* Edit overlay */}
+                <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                  {uploading ? (
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  )}
+                </div>
+              </button>
               <div className="absolute -bottom-1 -right-1 bg-[#00ff88] w-7 h-7 rounded-full border-[3px] border-[#0a0a0a] flex items-center justify-center">
                 <span className="text-black text-[9px] font-bold">{skillLevel.toFixed(1)}</span>
               </div>
             </div>
 
             <h1 className="text-2xl font-bold tracking-tight">{p?.full_name || 'Player'}</h1>
-            <p className="text-white/30 text-xs mt-1 font-medium">Karachi Padel Club</p>
+            <p className="text-white/30 text-xs mt-1 font-medium">Match Day</p>
 
             {/* Bio */}
             <p className="text-white/50 text-[13px] text-center mt-3 leading-relaxed max-w-[320px]">

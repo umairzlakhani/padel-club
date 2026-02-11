@@ -38,29 +38,30 @@ export default function BookingPage() {
   const [confirming, setConfirming] = useState(false)
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
 
+  const [dates, setDates] = useState<{ key: string; day: string; date: number; month: string }[]>([])
+
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ visible: true, message, type })
   }, [])
 
-  // Generate next 5 days
-  const dates = Array.from({ length: 5 }).map((_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() + i)
-    return {
-      key: d.toISOString().split('T')[0],
-      day: d.toLocaleDateString('en-US', { weekday: 'short' }),
-      date: d.getDate(),
-      month: d.toLocaleDateString('en-US', { month: 'short' }),
-    }
-  })
-
+  // Generate dates on the client only to avoid hydration mismatch
   useEffect(() => {
+    const generated = Array.from({ length: 5 }).map((_, i) => {
+      const d = new Date()
+      d.setDate(d.getDate() + i)
+      return {
+        key: d.toISOString().split('T')[0],
+        day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        date: d.getDate(),
+        month: d.toLocaleDateString('en-US', { month: 'short' }),
+      }
+    })
+    setDates(generated)
+    setSelectedDate(generated[0].key)
+
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setUserId(user.id)
-      if (!selectedDate && dates.length > 0) {
-        setSelectedDate(dates[0].key)
-      }
     }
     init()
   }, [])

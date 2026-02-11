@@ -40,11 +40,11 @@ const tabs = [
     ),
   },
   {
-    label: 'Events',
-    href: '/tournaments',
+    label: 'Ranks',
+    href: '/leaderboard',
     icon: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 21V10l4-7h10l4 7v11M8 21v-4a2 2 0 012-2h4a2 2 0 012 2v4" />
       </svg>
     ),
   },

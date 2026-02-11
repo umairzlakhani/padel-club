@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Premium, invite-only Padel matchmaking app for Karachi. Built with Next.js 16, React 19, TypeScript, and Tailwind CSS 4.
+**Match Day** — Premium, invite-only Padel matchmaking app for Karachi. Built with Next.js 16, React 19, TypeScript, and Tailwind CSS 4.
 
 ## Business Context
 

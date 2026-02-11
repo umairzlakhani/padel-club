@@ -1,41 +1,45 @@
-import ApplicationModal from "./components/ApplicationModal";
+'use client'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false)
+  const [session, setSession] = useState<any>(null)
+
+  useEffect(() => {
+    setMounted(true)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+  }, [])
+
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-6">
-      {/* Background glow effect */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-1/3 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/5 blur-[120px]" />
+    <div className="min-h-screen bg-[#0b0d14] text-white flex flex-col items-center justify-center p-6 text-center font-sans">
+      <div className="mb-8">
+        <div className="text-6xl mb-4">🎾</div>
+        <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none">
+          Match<br/><span className="text-[#00ff88]">Day</span>
+        </h1>
       </div>
 
-      {/* Hero content */}
-      <main className="relative z-10 flex max-w-3xl flex-col items-center gap-8 text-center">
-        {/* Badge */}
-        <span className="inline-block rounded-full border border-accent/20 bg-accent/5 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-accent">
-          Invite Only
-        </span>
-
-        {/* Headline */}
-        <h1 className="text-5xl font-bold leading-tight tracking-tight text-white sm:text-6xl lg:text-7xl">
-          Karachi&apos;s Exclusive
-          <br />
-          <span className="text-accent">Padel Network</span>
-        </h1>
-
-        {/* Subheadline */}
-        <p className="max-w-xl text-lg leading-relaxed text-muted sm:text-xl">
-          A members-only matchmaking platform for the city&apos;s most
-          competitive Padel players. Curated. Skill-matched. Premium.
-        </p>
-
-        {/* CTA */}
-        <ApplicationModal />
-
-        {/* Social proof line */}
-        <p className="mt-2 text-sm text-muted">
-          Limited to 1,000 founding members
-        </p>
-      </main>
+      <div className="space-y-4 w-full max-w-xs">
+        {!mounted ? (
+          <div className="py-4" />
+        ) : session ? (
+          <a href="/profile" className="block w-full py-4 bg-[#00ff88] text-black font-black rounded-2xl uppercase shadow-lg shadow-[#00ff88]/20">
+            Enter Dashboard
+          </a>
+        ) : (
+          <>
+            <a href="/login" className="block w-full py-4 bg-white text-black font-black rounded-2xl uppercase">
+              Sign In
+            </a>
+            <a href="/apply" className="block w-full py-4 border border-white/10 text-gray-500 font-bold rounded-2xl uppercase text-sm">
+              New Application
+            </a>
+          </>
+        )}
+      </div>
     </div>
-  );
+  )
 }

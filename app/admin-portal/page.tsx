@@ -78,7 +78,7 @@ export default function AdminPortal() {
   function buildWhatsAppUrl(app: Application) {
     const number = app.whatsapp_number.replace(/[^0-9]/g, "");
     const text = encodeURIComponent(
-      `Hi ${app.full_name}, welcome to Padel Club Karachi! We saw your ${app.skill_level} rating—ready for an evaluation?`
+      `Hi ${app.full_name}, welcome to Match Day! We saw your ${app.skill_level} rating—ready for an evaluation?`
     );
     return `https://wa.me/${number}?text=${text}`;
   }

@@ -24,7 +24,7 @@ const FALLBACK_TOURNAMENTS: Tournament[] = [
     id: '1', name: 'KPC Open — February Cup', date: '2026-02-22', display_date: 'Sat, 22 Feb 2026',
     venue: 'Legends Arena, DHA Phase 6', format: 'Round Robin + Knockout', entry_fee: 5000,
     max_teams: 16, registered_teams: 11, status: 'open',
-    description: 'The monthly flagship tournament of the Karachi Padel Circuit. Open to all skill levels with seeded brackets.',
+    description: 'The monthly flagship tournament of Match Day. Open to all skill levels with seeded brackets.',
     prize_pool: 'PKR 50,000',
   },
   {
@@ -207,7 +207,7 @@ export default function TournamentsPage() {
         {/* Header */}
         <div className="pt-12 pb-4 px-6">
           <h1 className="text-2xl font-bold tracking-tight mb-1">Tournaments</h1>
-          <p className="text-white/30 text-sm">Karachi Padel Circuit events</p>
+          <p className="text-white/30 text-sm">Match Day tournament events</p>
         </div>
 
         {/* Filters */}

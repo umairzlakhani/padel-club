@@ -13,9 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Padel Club Karachi — Exclusive Membership",
+  title: "Match Day — Karachi's Premier Padel Network",
   description:
-    "Karachi's premier invite-only Padel matchmaking network. Apply for membership today.",
+    "Karachi's premier invite-only padel matchmaking network. Apply for membership today.",
+  applicationName: "Match Day",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -24,8 +26,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
