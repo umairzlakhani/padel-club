@@ -28,11 +28,25 @@ const CLUBS: Club[] = [
 
 const ALL_TIMES = ['5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM']
 
+function SlotSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="p-3 rounded-xl border border-white/5 bg-white/5 animate-pulse">
+          <div className="h-4 w-16 bg-white/10 rounded mb-2" />
+          <div className="h-3 w-12 bg-white/5 rounded" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function BookingPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedClub, setSelectedClub] = useState<Club | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [slots, setSlots] = useState<TimeSlot[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
   const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set())
   const [confirmBooking, setConfirmBooking] = useState<TimeSlot | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -68,6 +82,7 @@ export default function BookingPage() {
 
   // Load slots whenever club or date changes
   const loadSlots = useCallback(async (club: Club, date: string) => {
+    setSlotsLoading(true)
     // Load existing bookings for this club+date
     const { data: bookings } = await supabase
       .from('court_bookings')
@@ -105,6 +120,7 @@ export default function BookingPage() {
         setBookedSlots(new Set(myBookings.map((b: any) => b.time_slot)))
       }
     }
+    setSlotsLoading(false)
   }, [userId])
 
   useEffect(() => {
@@ -232,7 +248,7 @@ export default function BookingPage() {
             {/* Time Slots */}
             <div className="px-6">
               <h3 className="text-xs uppercase font-bold tracking-wider text-white/30 mb-3">Available Slots</h3>
-              <div className="grid grid-cols-2 gap-2">
+              {slotsLoading ? <SlotSkeleton /> : <div className="grid grid-cols-2 gap-2">
                 {slots.map((slot) => {
                   const isMyBooking = bookedSlots.has(slot.time)
                   return (
@@ -259,7 +275,7 @@ export default function BookingPage() {
                     </button>
                   )
                 })}
-              </div>
+              </div>}
 
               <div className="mt-6 bg-[#111] rounded-2xl border border-white/5 p-4">
                 <div className="flex items-center justify-between">
