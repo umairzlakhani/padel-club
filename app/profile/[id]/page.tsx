@@ -2,6 +2,7 @@
 import { useState, useEffect, use } from 'react'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
+import Toast from '@/app/components/Toast'
 import { useRouter } from 'next/navigation'
 
 // Level evolution data points (mock — same shape as main profile)
@@ -81,13 +82,38 @@ export default function PlayerProfilePage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true)
   const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [rank, setRank] = useState<number | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [friendStatus, setFriendStatus] = useState<'none' | 'sent' | 'incoming' | 'friends'>('none')
+  const [friendRowId, setFriendRowId] = useState<string | null>(null)
+  const [friendActionLoading, setFriendActionLoading] = useState(false)
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
+  const [followers, setFollowers] = useState(0)
+  const [following, setFollowing] = useState(0)
 
   useEffect(() => {
     async function load() {
       // Check if viewing own profile
       const { data: { user } } = await supabase.auth.getUser()
-      if (user?.id === id) {
+      const uid = user?.id || null
+      setCurrentUserId(uid)
+      if (uid === id) {
         setIsOwnProfile(true)
+      }
+
+      // Load friend relationship
+      if (uid && uid !== id) {
+        const { data: friendRows } = await supabase
+          .from('friends')
+          .select('*')
+          .or(`and(requester_id.eq.${uid},addressee_id.eq.${id}),and(requester_id.eq.${id},addressee_id.eq.${uid})`)
+
+        if (friendRows && friendRows.length > 0) {
+          const row = friendRows[0]
+          setFriendRowId(row.id)
+          if (row.status === 'accepted') setFriendStatus('friends')
+          else if (row.status === 'pending' && row.requester_id === uid) setFriendStatus('sent')
+          else if (row.status === 'pending' && row.addressee_id === uid) setFriendStatus('incoming')
+        }
       }
 
       // Fetch player data
@@ -103,6 +129,21 @@ export default function PlayerProfilePage({ params }: { params: Promise<{ id: st
       }
 
       setPlayer(data)
+
+      // Load followers/following counts
+      const { count: followerCount } = await supabase
+        .from('friends')
+        .select('id', { count: 'exact', head: true })
+        .eq('addressee_id', id)
+        .eq('status', 'accepted')
+      setFollowers(followerCount || 0)
+
+      const { count: followingCount } = await supabase
+        .from('friends')
+        .select('id', { count: 'exact', head: true })
+        .eq('requester_id', id)
+        .eq('status', 'accepted')
+      setFollowing(followingCount || 0)
 
       // Determine rank among all members
       const { data: allMembers } = await supabase
@@ -125,6 +166,42 @@ export default function PlayerProfilePage({ params }: { params: Promise<{ id: st
     }
     load()
   }, [id])
+
+  async function handleFriendAction(action: 'add' | 'accept' | 'decline' | 'remove') {
+    if (!currentUserId) return
+    setFriendActionLoading(true)
+    try {
+      if (action === 'add') {
+        const { error } = await supabase.from('friends').insert({
+          requester_id: currentUserId,
+          addressee_id: id,
+        })
+        if (error) {
+          setToast({ visible: true, message: 'Could not send request', type: 'error' })
+        } else {
+          setFriendStatus('sent')
+          setToast({ visible: true, message: 'Friend request sent!', type: 'success' })
+        }
+      } else if (action === 'accept' && friendRowId) {
+        await supabase.from('friends').update({ status: 'accepted' }).eq('id', friendRowId)
+        setFriendStatus('friends')
+        setToast({ visible: true, message: 'Friend request accepted!', type: 'success' })
+      } else if (action === 'decline' && friendRowId) {
+        await supabase.from('friends').delete().eq('id', friendRowId)
+        setFriendStatus('none')
+        setFriendRowId(null)
+        setToast({ visible: true, message: 'Request declined', type: 'success' })
+      } else if (action === 'remove' && friendRowId) {
+        await supabase.from('friends').delete().eq('id', friendRowId)
+        setFriendStatus('none')
+        setFriendRowId(null)
+        setToast({ visible: true, message: 'Friend removed', type: 'success' })
+      }
+    } catch {
+      setToast({ visible: true, message: 'Something went wrong', type: 'error' })
+    }
+    setFriendActionLoading(false)
+  }
 
   if (loading) {
     return (
@@ -155,12 +232,12 @@ export default function PlayerProfilePage({ params }: { params: Promise<{ id: st
   const playingHand = player.playing_hand || 'Right'
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
-      <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+      <div className="w-full max-w-[480px] min-h-screen relative pb-24 page-transition">
         {/* Header */}
         <div className="pt-12 pb-6 px-6">
           <div className="flex justify-between items-center mb-8">
-            <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors">
+            <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Go back">
               <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
@@ -210,17 +287,59 @@ export default function PlayerProfilePage({ params }: { params: Promise<{ id: st
             <p className="text-white/50 text-[13px] text-center mt-3 leading-relaxed max-w-[320px]">
               Level {skillLevel.toFixed(1)} player · {matchesPlayed} matches played · {winRate}% win rate
             </p>
+
+            {/* Friend Button */}
+            {!isOwnProfile && currentUserId && (
+              <div className="mt-4">
+                {friendActionLoading ? (
+                  <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin mx-auto" />
+                ) : friendStatus === 'friends' ? (
+                  <button
+                    onClick={() => handleFriendAction('remove')}
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20 min-h-[44px]"
+                  >
+                    Following ✓
+                  </button>
+                ) : friendStatus === 'sent' ? (
+                  <button className="px-6 py-2.5 rounded-xl text-xs font-bold bg-white/5 text-white/40 min-h-[44px] cursor-default">
+                    Requested
+                  </button>
+                ) : friendStatus === 'incoming' ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleFriendAction('accept')}
+                      className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00ff88] text-black min-h-[44px]"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleFriendAction('decline')}
+                      className="px-5 py-2.5 rounded-xl text-xs font-bold bg-white/5 text-white/40 min-h-[44px]"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleFriendAction('add')}
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold bg-[#00ff88] text-black hover:bg-[#00ff88]/90 transition-all min-h-[44px]"
+                  >
+                    Follow
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Stats row */}
+          {/* Stats row — Followers / Following / Win Rate */}
           <div className="flex justify-center gap-12 mt-6">
             <div className="text-center">
-              <p className="text-xl font-bold">{matchesPlayed}</p>
-              <p className="text-[10px] text-white/30 uppercase font-semibold tracking-wider">Matches</p>
+              <p className="text-xl font-bold">{followers}</p>
+              <p className="text-[10px] text-white/30 uppercase font-semibold tracking-wider">Followers</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-bold">{matchesWon}</p>
-              <p className="text-[10px] text-white/30 uppercase font-semibold tracking-wider">Wins</p>
+              <p className="text-xl font-bold">{following}</p>
+              <p className="text-[10px] text-white/30 uppercase font-semibold tracking-wider">Following</p>
             </div>
             <div className="text-center">
               <p className="text-xl font-bold">{winRate}%</p>
@@ -267,6 +386,7 @@ export default function PlayerProfilePage({ params }: { params: Promise<{ id: st
         </div>
       </div>
       <BottomNav />
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast(t => ({ ...t, visible: false }))} />
     </div>
   )
 }
