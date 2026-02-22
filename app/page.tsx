@@ -26,7 +26,7 @@ export default function Home() {
         {!mounted ? (
           <div className="py-4" />
         ) : session ? (
-          <a href="/profile" className="block w-full py-4 bg-[#00ff88] text-black font-black rounded-2xl uppercase shadow-lg shadow-[#00ff88]/20">
+          <a href="/dashboard" className="block w-full py-4 bg-[#00ff88] text-black font-black rounded-2xl uppercase shadow-lg shadow-[#00ff88]/20">
             Enter Dashboard
           </a>
         ) : (
@@ -36,6 +36,9 @@ export default function Home() {
             </a>
             <a href="/apply" className="block w-full py-4 border border-white/10 text-gray-500 font-bold rounded-2xl uppercase text-sm">
               New Application
+            </a>
+            <a href="/coach-apply" className="block w-full py-3 text-gray-600 font-semibold rounded-2xl uppercase text-xs tracking-wider text-center hover:text-[#00ff88] transition-all">
+              Apply as Coach
             </a>
           </>
         )}

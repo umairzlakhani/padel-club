@@ -7,6 +7,7 @@ import { supabase, getUserRole, UserRole } from '@/lib/supabase'
 import { IMAGES } from '@/lib/images'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
+import AvailabilityPicker, { type AvailabilityEntry } from '@/app/components/AvailabilityPicker'
 
 // ─── Mock Data (mirrors /profile) ───────────────────────────────────────────
 
@@ -331,7 +332,7 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
           </div>
         ) : (
           <div className="space-y-3">
-            {upcomingMatches.map((match) => (
+            {upcomingMatches.slice(0, 3).map((match) => (
               <div key={match.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold">{match.venue}</span>
@@ -360,6 +361,14 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
                 </div>
               </div>
             ))}
+            {upcomingMatches.length > 3 && (
+              <Link
+                href="/matchmaking"
+                className="block text-center py-2.5 text-[11px] font-bold text-[#00ff88] uppercase tracking-wider hover:underline"
+              >
+                See all {upcomingMatches.length} games
+              </Link>
+            )}
           </div>
         )}
       </section>
@@ -395,9 +404,18 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
 
 function CoachDashboard({ userId }: { userId: string }) {
   const [coachName, setCoachName] = useState('')
+  const [coachRecord, setCoachRecord] = useState<any>(null)
   const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'schedule' | 'profile'>('schedule')
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
+
+  // Profile edit state
+  const [editSpecialization, setEditSpecialization] = useState('')
+  const [editRate, setEditRate] = useState('')
+  const [editLevel, setEditLevel] = useState('Pro')
+  const [editAvailability, setEditAvailability] = useState<AvailabilityEntry[]>([])
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -410,24 +428,31 @@ function CoachDashboard({ userId }: { userId: string }) {
       const name = app?.full_name || ''
       setCoachName(name)
 
-      // Find coach record by name
-      const { data: coaches } = await supabase
+      // Find coach record by user_id
+      const { data: coach } = await supabase
         .from('coaches')
-        .select('id, name, rate')
-        .ilike('name', `%${name}%`)
+        .select('*')
+        .eq('user_id', userId)
+        .single()
 
-      if (coaches && coaches.length > 0) {
-        const coachId = coaches[0].id
+      if (coach) {
+        setCoachRecord(coach)
+        setEditSpecialization(coach.specialization || '')
+        setEditRate(String(coach.rate || ''))
+        setEditLevel(coach.level || 'Pro')
+        const avail = typeof coach.availability === 'string'
+          ? JSON.parse(coach.availability)
+          : coach.availability || []
+        setEditAvailability(avail)
 
         // Fetch confirmed bookings
         const { data: bks } = await supabase
           .from('coaching_bookings')
           .select('id, user_id, day, time_slot, price, status')
-          .eq('coach_id', coachId)
+          .eq('coach_id', coach.id)
           .eq('status', 'confirmed')
 
         if (bks && bks.length > 0) {
-          // Resolve student names
           const studentIds = [...new Set(bks.map((b: any) => b.user_id))]
           const { data: students } = await supabase
             .from('applications')
@@ -445,6 +470,29 @@ function CoachDashboard({ userId }: { userId: string }) {
     }
     load()
   }, [userId])
+
+  async function handleSaveProfile() {
+    if (!coachRecord) return
+    setSaving(true)
+
+    const { error } = await supabase
+      .from('coaches')
+      .update({
+        specialization: editSpecialization,
+        rate: Number(editRate),
+        level: editLevel,
+        availability: editAvailability,
+      })
+      .eq('user_id', userId)
+
+    if (error) {
+      setToast({ visible: true, message: error.message, type: 'error' })
+    } else {
+      setToast({ visible: true, message: 'Profile updated!', type: 'success' })
+      setCoachRecord({ ...coachRecord, specialization: editSpecialization, rate: Number(editRate), level: editLevel, availability: editAvailability })
+    }
+    setSaving(false)
+  }
 
   if (loading) return <LoadingSpinner label="Loading coach dashboard..." />
 
@@ -465,60 +513,129 @@ function CoachDashboard({ userId }: { userId: string }) {
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast(t => ({ ...t, visible: false }))} />
 
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-1">Coach Portal</p>
         <h1 className="text-2xl font-bold tracking-tight">{coachName || 'Coach'}</h1>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
-        <div className="bg-[#111] rounded-2xl border border-white/5 p-5 text-center">
-          <p className="text-3xl font-bold">{totalBookings}</p>
-          <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Total Bookings</p>
-        </div>
-        <div className="bg-[#111] rounded-2xl border border-white/5 p-5 text-center">
-          <p className="text-3xl font-bold text-[#00ff88]">PKR {totalRevenue.toLocaleString()}</p>
-          <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Revenue</p>
-        </div>
+      {/* Tab Toggle */}
+      <div className="flex border-b border-white/5 mb-6">
+        {(['schedule', 'profile'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-3 text-[11px] font-bold uppercase tracking-widest transition-all ${
+              activeTab === tab ? 'text-[#00ff88] border-b-2 border-[#00ff88]' : 'text-white/30 border-b-2 border-transparent'
+            }`}
+          >
+            {tab === 'schedule' ? 'Schedule' : 'My Profile'}
+          </button>
+        ))}
       </div>
 
-      {/* Weekly Schedule */}
-      <section className="mb-8">
-        <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Weekly Schedule</h3>
-        {sortedDays.length === 0 ? (
-          <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
-            <p className="text-white/20 text-sm">No confirmed bookings yet</p>
+      {activeTab === 'schedule' && (
+        <>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 gap-3 mb-8">
+            <div className="bg-[#111] rounded-2xl border border-white/5 p-5 text-center">
+              <p className="text-3xl font-bold">{totalBookings}</p>
+              <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Total Bookings</p>
+            </div>
+            <div className="bg-[#111] rounded-2xl border border-white/5 p-5 text-center">
+              <p className="text-3xl font-bold text-[#00ff88]">PKR {totalRevenue.toLocaleString()}</p>
+              <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Revenue</p>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {sortedDays.map((day) => (
-              <div key={day} className="bg-[#111] rounded-2xl border border-white/5 p-4">
-                <h4 className="text-xs font-bold text-[#00ff88] uppercase tracking-wider mb-2">{day}</h4>
-                <div className="space-y-2">
-                  {grouped[day].map((b: any) => (
-                    <div key={b.id} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/60">{b.time_slot}</span>
-                        <span className="text-white/20">·</span>
-                        <span className="text-white/80">{b.student_name}</span>
-                      </div>
-                      <span className="text-white/30 text-xs">PKR {b.price}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
 
-      {/* Verify Player Button */}
-      <button
-        onClick={() => setToast({ visible: true, message: 'Coming soon — player verification will be available in the next update', type: 'success' })}
-        className="w-full py-3.5 bg-white/5 border border-white/10 text-white/60 font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-white/10 transition-all"
-      >
-        Verify Player Level
-      </button>
+          {/* Weekly Schedule */}
+          <section className="mb-8">
+            <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Weekly Schedule</h3>
+            {sortedDays.length === 0 ? (
+              <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
+                <p className="text-white/20 text-sm">No confirmed bookings yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sortedDays.map((day) => (
+                  <div key={day} className="bg-[#111] rounded-2xl border border-white/5 p-4">
+                    <h4 className="text-xs font-bold text-[#00ff88] uppercase tracking-wider mb-2">{day}</h4>
+                    <div className="space-y-2">
+                      {grouped[day].map((b: any) => (
+                        <div key={b.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white/60">{b.time_slot}</span>
+                            <span className="text-white/20">·</span>
+                            <span className="text-white/80">{b.student_name}</span>
+                          </div>
+                          <span className="text-white/30 text-xs">PKR {b.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Verify Player Button */}
+          <button
+            onClick={() => setToast({ visible: true, message: 'Coming soon — player verification will be available in the next update', type: 'success' })}
+            className="w-full py-3.5 bg-white/5 border border-white/10 text-white/60 font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-white/10 transition-all"
+          >
+            Verify Player Level
+          </button>
+        </>
+      )}
+
+      {activeTab === 'profile' && (
+        <div className="space-y-4">
+          {!coachRecord ? (
+            <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
+              <p className="text-white/20 text-sm">No coach profile found. Contact admin.</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Specialization</label>
+                <input value={editSpecialization} className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 outline-none focus:border-[#00ff88] transition-all"
+                  onChange={e => setEditSpecialization(e.target.value)} />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Hourly Rate (PKR)</label>
+                <input type="number" value={editRate} className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 outline-none focus:border-[#00ff88] transition-all"
+                  onChange={e => setEditRate(e.target.value)} />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Level</label>
+                <select
+                  value={editLevel}
+                  onChange={e => setEditLevel(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 outline-none focus:border-[#00ff88] transition-all appearance-none"
+                >
+                  <option value="Elite">Elite</option>
+                  <option value="Pro">Pro</option>
+                  <option value="Intermediate">Intermediate</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Availability</label>
+                <AvailabilityPicker value={editAvailability} onChange={setEditAvailability} />
+              </div>
+
+              <button
+                onClick={handleSaveProfile}
+                disabled={saving}
+                className="w-full mt-2 py-4 bg-[#00ff88] text-black font-black rounded-2xl uppercase tracking-widest text-xs hover:shadow-[0_0_20px_rgba(0,255,136,0.2)] transition-all disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -531,18 +648,23 @@ interface Application {
   whatsapp_number: string
   skill_level: number
   status: string | null
+  role?: string | null
   created_at: string
 }
 
 function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
   const [stats, setStats] = useState({ members: 0, revenue: 0, activeMatches: 0 })
   const [applications, setApplications] = useState<Application[]>([])
+  const [coaches, setCoaches] = useState<any[]>([])
+  const [editingCoachId, setEditingCoachId] = useState<string | null>(null)
+  const [editCoachData, setEditCoachData] = useState<any>({})
+  const [savingCoach, setSavingCoach] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const [membersRes, bookingsRes, matchesRes, appsRes] = await Promise.all([
+      const [membersRes, bookingsRes, matchesRes, appsRes, coachesRes] = await Promise.all([
         supabase
           .from('applications')
           .select('id', { count: 'exact', head: true })
@@ -560,6 +682,9 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
           .from('applications')
           .select('*')
           .order('created_at', { ascending: false }),
+        supabase
+          .from('coaches')
+          .select('*'),
       ])
 
       const memberCount = membersRes.count || 0
@@ -568,6 +693,10 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
 
       setStats({ members: memberCount, revenue: legendsRevenue, activeMatches: activeMatchCount })
       setApplications(appsRes.data || [])
+      setCoaches((coachesRes.data || []).map((c: any) => ({
+        ...c,
+        availability: typeof c.availability === 'string' ? JSON.parse(c.availability) : c.availability || [],
+      })))
       setLoading(false)
     }
     load()
@@ -606,6 +735,49 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
       `Hi ${app.full_name}, welcome to Match Day! We saw your ${app.skill_level} rating—ready for an evaluation?`
     )
     return `https://wa.me/${number}?text=${text}`
+  }
+
+  function startEditCoach(coach: any) {
+    setEditingCoachId(coach.id)
+    setEditCoachData({
+      specialization: coach.specialization || '',
+      rate: String(coach.rate || ''),
+      level: coach.level || 'Pro',
+      availability: coach.availability || [],
+    })
+  }
+
+  async function handleSaveCoach(coachId: string) {
+    setSavingCoach(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    const res = await fetch('/api/update-coach', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        coachId,
+        specialization: editCoachData.specialization,
+        rate: Number(editCoachData.rate),
+        level: editCoachData.level,
+        availability: editCoachData.availability,
+      }),
+    })
+
+    if (res.ok) {
+      setCoaches((prev) =>
+        prev.map((c) =>
+          c.id === coachId
+            ? { ...c, specialization: editCoachData.specialization, rate: Number(editCoachData.rate), level: editCoachData.level, availability: editCoachData.availability }
+            : c
+        )
+      )
+      setEditingCoachId(null)
+    }
+    setSavingCoach(false)
   }
 
   if (loading) return <LoadingSpinner label="Loading admin dashboard..." />
@@ -683,7 +855,14 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
             {applications.map((app) => (
               <div key={app.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-bold">{app.full_name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold">{app.full_name}</span>
+                    {app.role === 'coach' && (
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
+                        Coach
+                      </span>
+                    )}
+                  </div>
                   {app.status === 'member' ? (
                     <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#00ff88]/10 text-[#00ff88]">
                       Member
@@ -730,6 +909,87 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
                     </button>
                   )}
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Coaches Management */}
+      <section className="mt-8">
+        <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Coaches</h3>
+        {coaches.length === 0 ? (
+          <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
+            <p className="text-white/20 text-sm">No coaches registered yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {coaches.map((coach) => (
+              <div key={coach.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
+                {editingCoachId === coach.id ? (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-bold mb-2">{coach.name}</h4>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Specialization</label>
+                      <input value={editCoachData.specialization} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#00ff88] transition-all"
+                        onChange={e => setEditCoachData({ ...editCoachData, specialization: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Rate (PKR)</label>
+                        <input type="number" value={editCoachData.rate} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#00ff88] transition-all"
+                          onChange={e => setEditCoachData({ ...editCoachData, rate: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Level</label>
+                        <select value={editCoachData.level} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#00ff88] transition-all appearance-none"
+                          onChange={e => setEditCoachData({ ...editCoachData, level: e.target.value })}>
+                          <option value="Elite">Elite</option>
+                          <option value="Pro">Pro</option>
+                          <option value="Intermediate">Intermediate</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Availability</label>
+                      <AvailabilityPicker value={editCoachData.availability} onChange={(v: AvailabilityEntry[]) => setEditCoachData({ ...editCoachData, availability: v })} />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditingCoachId(null)} className="flex-1 py-2.5 bg-white/5 text-white/50 font-bold rounded-xl text-xs uppercase tracking-wider">
+                        Cancel
+                      </button>
+                      <button onClick={() => handleSaveCoach(coach.id)} disabled={savingCoach} className="flex-1 py-2.5 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider disabled:opacity-50">
+                        {savingCoach ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold">{coach.name}</span>
+                        <span className="text-[10px] font-semibold text-[#00ff88] bg-[#00ff88]/10 px-1.5 py-0.5 rounded">
+                          {coach.level || 'Pro'}
+                        </span>
+                      </div>
+                      <span className="text-sm font-bold text-[#00ff88]">PKR {(coach.rate || 0).toLocaleString()}/hr</span>
+                    </div>
+                    <p className="text-white/40 text-xs mb-2">{coach.specialization || 'No specialization set'}</p>
+                    <div className="flex items-center gap-2 flex-wrap mb-3">
+                      {(coach.availability || []).slice(0, 4).map((a: any) => (
+                        <span key={a.day} className="text-[10px] font-medium text-white/20 bg-white/5 px-2 py-1 rounded-md">
+                          {a.day} · {a.slots?.length || 0} slots
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => startEditCoach(coach)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/60 hover:border-[#00ff88]/30 hover:text-[#00ff88] transition-all"
+                    >
+                      Edit
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
