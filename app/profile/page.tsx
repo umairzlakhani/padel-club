@@ -29,11 +29,11 @@ export default function ProfilePage() {
   const [editHand, setEditHand] = useState('Right')
   const [editSaving, setEditSaving] = useState(false)
 
-  // Collapsible upcoming games
-  const [gamesExpanded, setGamesExpanded] = useState(false)
-  const [upcomingGames, setUpcomingGames] = useState<any[]>([])
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'bookings' | 'performance' | 'stats'>('bookings')
 
-  // My Bookings
+  // Upcoming games + Bookings
+  const [upcomingGames, setUpcomingGames] = useState<any[]>([])
   const [bookings, setBookings] = useState<any[]>([])
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -298,192 +298,299 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* ─── Single Scrollable Content (no tabs) ─── */}
-        <div className="px-6 py-6 space-y-6 pb-24">
-          {/* Stat Cards */}
-          <section>
-            <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Performance</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
-                <p className="text-2xl font-bold text-[#00ff88]">{skillLevel.toFixed(1)}</p>
-                <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Skill Level</p>
-              </div>
-              <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
-                <p className="text-2xl font-bold">{matchesPlayed}</p>
-                <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Matches</p>
-              </div>
-              <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
-                <p className="text-2xl font-bold">{winRate}%</p>
-                <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Win Rate</p>
-              </div>
-            </div>
-          </section>
+        {/* ─── Tab Bar ─── */}
+        <div className="px-6 mb-1">
+          <div className="flex bg-white/5 rounded-xl p-1 gap-1">
+            {(['bookings', 'performance', 'stats'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors relative ${
+                  activeTab === tab ? 'text-black' : 'text-white/40'
+                }`}
+              >
+                {activeTab === tab && (
+                  <motion.div
+                    layoutId="profileTab"
+                    className="absolute inset-0 bg-[#00ff88] rounded-lg"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">
+                  {tab === 'bookings' ? 'Bookings' : tab === 'performance' ? 'Performance' : 'Stats'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {/* My Bookings */}
-          <section>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">My Bookings</h3>
-              <Link href="/booking" className="text-[10px] text-[#00ff88] font-semibold uppercase hover:underline">Book court</Link>
-            </div>
-            {bookings.length === 0 ? (
-              <div className="bg-[#111] rounded-2xl border border-white/5 p-6 text-center">
-                <p className="text-white/20 text-sm mb-3">No bookings yet</p>
-                <Link
-                  href="/booking"
-                  className="inline-block px-4 py-2 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl"
-                >
-                  Book a Court
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {bookings.map((b: any) => (
-                  <div key={b.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-bold">{b.club_name || b.club_id}</span>
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                        b.status === 'confirmed' ? 'bg-[#00ff88]/10 text-[#00ff88]'
-                          : b.status === 'cancelled' ? 'bg-red-500/10 text-red-400'
-                          : 'bg-white/5 text-white/30'
-                      }`}>
-                        {b.status}
-                      </span>
+        {/* ─── Tab Content ─── */}
+        <AnimatePresence mode="wait">
+          {activeTab === 'bookings' && (
+            <motion.div
+              key="bookings"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="px-6 py-5 space-y-6 pb-24"
+            >
+              {/* Upcoming Games */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Upcoming Games</h3>
+                  {upcomingGames.length > 0 && (
+                    <span className="text-[10px] font-bold bg-[#00ff88]/10 text-[#00ff88] px-2 py-0.5 rounded-full">
+                      {upcomingGames.length}
+                    </span>
+                  )}
+                </div>
+                {upcomingGames.length === 0 ? (
+                  <div className="bg-[#111] rounded-2xl border border-white/5 p-6 text-center">
+                    <p className="text-white/20 text-sm">No upcoming games</p>
+                    <Link href="/matchmaking" className="inline-block mt-3 px-4 py-2 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl">
+                      Find a Match
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {upcomingGames.map((match: any) => (
+                      <div key={match.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold">{match.venue}</span>
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                            match.status === 'full' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
+                          }`}>
+                            {match.status === 'full' ? 'Full' : 'Open'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-white/40 text-xs">
+                          <span>{new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                          <span>·</span>
+                          <span>{match.time}</span>
+                          <span>·</span>
+                          <span>{match.current_players}/{match.max_players} players</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Court Bookings */}
+              <section>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Court Bookings</h3>
+                  <Link href="/booking" className="text-[10px] text-[#00ff88] font-semibold uppercase hover:underline">Book court</Link>
+                </div>
+                {bookings.length === 0 ? (
+                  <div className="bg-[#111] rounded-2xl border border-white/5 p-6 text-center">
+                    <p className="text-white/20 text-sm mb-3">No bookings yet</p>
+                    <Link href="/booking" className="inline-block px-4 py-2 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl">
+                      Book a Court
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {bookings.map((b: any) => (
+                      <div key={b.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold">{b.club_name || b.club_id}</span>
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                            b.status === 'confirmed' ? 'bg-[#00ff88]/10 text-[#00ff88]'
+                              : b.status === 'cancelled' ? 'bg-red-500/10 text-red-400'
+                              : 'bg-white/5 text-white/30'
+                          }`}>
+                            {b.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-white/40 text-xs">
+                          <span>{new Date(b.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                          <span>·</span>
+                          <span>{b.time_slot || b.time}</span>
+                          {b.court_number && (<><span>·</span><span>Court {b.court_number}</span></>)}
+                          {b.price > 0 && (<><span>·</span><span>PKR {b.price.toLocaleString()}</span></>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </motion.div>
+          )}
+
+          {activeTab === 'performance' && (
+            <motion.div
+              key="performance"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="px-6 py-5 space-y-6 pb-24"
+            >
+              {/* Skill Level Card */}
+              <section>
+                <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Current Level</h3>
+                <div className="bg-[#111] rounded-2xl border border-white/5 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-4xl font-black text-[#00ff88]">{skillLevel.toFixed(1)}</p>
+                      <p className="text-white/30 text-xs mt-1">Skill Rating</p>
                     </div>
-                    <div className="flex items-center gap-3 text-white/40 text-xs">
-                      <span>{new Date(b.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-                      <span>·</span>
-                      <span>{b.time_slot || b.time}</span>
-                      {b.court_number && (
-                        <>
-                          <span>·</span>
-                          <span>Court {b.court_number}</span>
-                        </>
-                      )}
-                      {b.price > 0 && (
-                        <>
-                          <span>·</span>
-                          <span>PKR {b.price.toLocaleString()}</span>
-                        </>
-                      )}
+                    <div className="w-20 h-20 relative">
+                      <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
+                        <motion.circle
+                          cx="18" cy="18" r="15.5" fill="none" stroke="#00ff88" strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(skillLevel / 7) * 97.4} 97.4`}
+                          initial={{ strokeDasharray: '0 97.4' }}
+                          animate={{ strokeDasharray: `${(skillLevel / 7) * 97.4} 97.4` }}
+                          transition={{ duration: 1, ease: 'easeOut' }}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-white/30">/ 7.0</span>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                  <div className="h-px bg-white/5 mb-4" />
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-white/20">Beginner</span>
+                    <span className="text-white/20">Intermediate</span>
+                    <span className="text-white/20">Pro</span>
+                  </div>
+                  <div className="h-2 bg-white/5 rounded-full mt-1.5 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-gradient-to-r from-[#00ff88]/50 to-[#00ff88]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(skillLevel / 7) * 100}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+              </section>
 
-          {/* Collapsible Upcoming Games */}
-          <section>
-            <button
-              onClick={() => setGamesExpanded(!gamesExpanded)}
-              className="w-full flex items-center justify-between mb-3"
+              {/* Win Rate Ring */}
+              <section>
+                <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Win Rate</h3>
+                <div className="bg-[#111] rounded-2xl border border-white/5 p-6 flex items-center gap-6">
+                  <div className="w-28 h-28 relative flex-shrink-0">
+                    <svg viewBox="0 0 36 36" className="w-28 h-28 -rotate-90">
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
+                      <motion.circle
+                        cx="18" cy="18" r="15.5" fill="none" stroke="#00ff88" strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeDasharray={`${(winRate / 100) * 97.4} 97.4`}
+                        initial={{ strokeDasharray: '0 97.4' }}
+                        animate={{ strokeDasharray: `${(winRate / 100) * 97.4} 97.4` }}
+                        transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-black">{winRate}%</span>
+                      <span className="text-[9px] text-white/20 uppercase font-bold">Win Rate</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[11px] text-white/40">Wins</span>
+                        <span className="text-sm font-bold text-[#00ff88]">{matchesWon}</span>
+                      </div>
+                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-[#00ff88]"
+                          initial={{ width: 0 }}
+                          animate={{ width: matchesPlayed > 0 ? `${(matchesWon / matchesPlayed) * 100}%` : '0%' }}
+                          transition={{ duration: 0.6, delay: 0.3 }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[11px] text-white/40">Losses</span>
+                        <span className="text-sm font-bold text-red-400">{matchesPlayed - matchesWon}</span>
+                      </div>
+                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-red-400"
+                          initial={{ width: 0 }}
+                          animate={{ width: matchesPlayed > 0 ? `${((matchesPlayed - matchesWon) / matchesPlayed) * 100}%` : '0%' }}
+                          transition={{ duration: 0.6, delay: 0.4 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Performance Summary */}
+              <section>
+                <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Summary</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
+                    <p className="text-2xl font-bold">{matchesPlayed}</p>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Total Matches</p>
+                  </div>
+                  <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
+                    <p className="text-2xl font-bold text-[#00ff88]">{matchesWon}</p>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Victories</p>
+                  </div>
+                </div>
+              </section>
+            </motion.div>
+          )}
+
+          {activeTab === 'stats' && (
+            <motion.div
+              key="stats"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="px-6 py-5 space-y-4 pb-24"
             >
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Upcoming Games</h3>
-                {upcomingGames.length > 0 && (
-                  <span className="text-[10px] font-bold bg-[#00ff88]/10 text-[#00ff88] px-2 py-0.5 rounded-full">
-                    {upcomingGames.length}
-                  </span>
-                )}
-              </div>
-              <motion.svg
-                animate={{ rotate: gamesExpanded ? 180 : 0 }}
-                transition={{ duration: 0.2 }}
-                width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-white/30"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </motion.svg>
-            </button>
-            <AnimatePresence initial={false}>
-              {gamesExpanded && (
+              {/* Stat Rows */}
+              {[
+                { label: 'Skill Level', value: skillLevel.toFixed(1), color: '#00ff88' },
+                { label: 'Matches Played', value: String(matchesPlayed), color: '#ffffff' },
+                { label: 'Matches Won', value: String(matchesWon), color: '#00ff88' },
+                { label: 'Matches Lost', value: String(matchesPlayed - matchesWon), color: '#f87171' },
+                { label: 'Win Rate', value: `${winRate}%`, color: '#00ff88' },
+                { label: 'Playing Hand', value: p?.playing_hand || 'Right', color: '#ffffff' },
+                { label: 'Followers', value: String(followers), color: '#ffffff' },
+                { label: 'Following', value: String(following), color: '#ffffff' },
+              ].map((stat, i) => (
                 <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="overflow-hidden"
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04, type: 'spring', stiffness: 300, damping: 30 }}
+                  className="bg-[#111] rounded-2xl border border-white/5 p-4 flex items-center justify-between"
                 >
-                  {upcomingGames.length === 0 ? (
-                    <div className="bg-[#111] rounded-2xl border border-white/5 p-6 text-center">
-                      <p className="text-white/20 text-sm">No upcoming games</p>
-                      <Link
-                        href="/matchmaking"
-                        className="inline-block mt-3 px-4 py-2 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl"
-                      >
-                        Find a Match
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {upcomingGames.slice(0, 2).map((match: any) => (
-                        <div key={match.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-bold">{match.venue}</span>
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                              match.status === 'full' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
-                            }`}>
-                              {match.status === 'full' ? 'Full' : 'Open'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-white/40 text-xs">
-                            <span>{new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-                            <span>·</span>
-                            <span>{match.time}</span>
-                            <span>·</span>
-                            <span>{match.current_players}/{match.max_players} players</span>
-                          </div>
-                        </div>
-                      ))}
-                      {upcomingGames.length > 2 && (
-                        <Link
-                          href="/dashboard"
-                          className="block text-center py-2.5 text-[11px] font-bold text-[#00ff88] uppercase tracking-wider hover:underline"
-                        >
-                          See all {upcomingGames.length} games
-                        </Link>
-                      )}
-                    </div>
-                  )}
+                  <span className="text-white/40 text-sm">{stat.label}</span>
+                  <span className="text-lg font-bold" style={{ color: stat.color }}>{stat.value}</span>
+                </motion.div>
+              ))}
+
+              {/* Member Since */}
+              {p?.created_at && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35, type: 'spring', stiffness: 300, damping: 30 }}
+                  className="bg-[#111] rounded-2xl border border-white/5 p-4 flex items-center justify-between"
+                >
+                  <span className="text-white/40 text-sm">Member Since</span>
+                  <span className="text-sm font-bold text-white/70">
+                    {new Date(p.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                  </span>
                 </motion.div>
               )}
-            </AnimatePresence>
-          </section>
-
-          {/* Level Evolution */}
-          <section>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Level Evolution</h3>
-            </div>
-            <div className="bg-[#111] rounded-2xl border border-white/5 p-6 text-center">
-              <p className="text-3xl font-bold text-[#00ff88] mb-1">{skillLevel.toFixed(1)}</p>
-              <p className="text-white/30 text-xs">Current skill level</p>
-              <p className="text-white/15 text-[10px] mt-2">Detailed level history coming soon</p>
-            </div>
-          </section>
-
-          {/* Last Matches */}
-          <section>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Match History</h3>
-            </div>
-            {matchesPlayed === 0 ? (
-              <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
-                <p className="text-white/20 text-sm mb-3">No matches played yet</p>
-                <Link
-                  href="/matchmaking"
-                  className="inline-block px-5 py-2.5 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl"
-                >
-                  Find a Match
-                </Link>
-              </div>
-            ) : (
-              <div className="bg-[#111] rounded-2xl border border-white/5 p-6 text-center">
-                <p className="text-white/30 text-sm">{matchesWon}W – {matchesPlayed - matchesWon}L</p>
-                <p className="text-white/15 text-[10px] mt-2">Match history details coming soon</p>
-              </div>
-            )}
-          </section>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       <BottomNav />
 
