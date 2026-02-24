@@ -1,8 +1,14 @@
 'use client'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import AvailabilityPicker, { type AvailabilityEntry } from '@/app/components/AvailabilityPicker'
+import Toast from '@/app/components/Toast'
+
+function isValidWhatsApp(number: string): boolean {
+  const digits = number.replace(/[^0-9]/g, '')
+  return digits.length >= 10 && digits.length <= 15
+}
 
 export default function CoachApplyPage() {
   const [formData, setFormData] = useState({
@@ -18,12 +24,21 @@ export default function CoachApplyPage() {
   const [availability, setAvailability] = useState<AvailabilityEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
   const router = useRouter()
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
+    if (!isValidWhatsApp(formData.whatsapp_number)) {
+      setError('Please enter a valid WhatsApp number (10-15 digits)')
+      return
+    }
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters')
       return
@@ -97,13 +112,14 @@ export default function CoachApplyPage() {
     // Sign out so they start fresh on login
     await supabase.auth.signOut()
 
-    alert('Coach application sent! Your account has been created. You can log in once approved.')
-    router.push('/login')
+    showToast('Coach application sent! You can log in once approved.')
+    setTimeout(() => router.push('/login'), 1500)
     setLoading(false)
   }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-6 font-sans overflow-y-auto">
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast(t => ({ ...t, visible: false }))} />
       <div className="max-w-md w-full bg-[#111111] rounded-[40px] border border-white/5 p-10 shadow-2xl my-8">
         <div className="text-center mb-10">
           <h2 className="text-3xl font-black italic uppercase tracking-tighter">Become a Coach</h2>

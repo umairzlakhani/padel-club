@@ -15,40 +15,7 @@ type Coach = {
   availability: { day: string; slots: string[] }[]
 }
 
-const FALLBACK_COACHES: Coach[] = [
-  {
-    id: 'nameer', name: 'Nameer Shamsi', specialization: 'Advanced Tactics & Strategy',
-    bio: 'Former national-level player with 10+ years of coaching experience. Specializes in advanced shot placement, wall play, and competitive match strategy.',
-    level: 'Elite', rate: 8000, initial: 'NS',
-    availability: [
-      { day: 'Mon', slots: ['5:00 PM', '6:00 PM', '7:00 PM'] },
-      { day: 'Wed', slots: ['5:00 PM', '6:00 PM'] },
-      { day: 'Fri', slots: ['4:00 PM', '5:00 PM', '6:00 PM'] },
-      { day: 'Sat', slots: ['10:00 AM', '11:00 AM', '4:00 PM'] },
-    ],
-  },
-  {
-    id: 'azhar', name: 'Azhar Katchi', specialization: 'Beginner & Intermediate Development',
-    bio: 'Certified padel instructor focused on building strong fundamentals. Perfect for new players looking to develop proper technique and court awareness.',
-    level: 'Pro', rate: 6000, initial: 'AK',
-    availability: [
-      { day: 'Tue', slots: ['6:00 PM', '7:00 PM', '8:00 PM'] },
-      { day: 'Thu', slots: ['5:00 PM', '6:00 PM', '7:00 PM'] },
-      { day: 'Sat', slots: ['9:00 AM', '10:00 AM', '11:00 AM'] },
-    ],
-  },
-  {
-    id: 'farhan', name: 'Farhan Mustafa', specialization: 'Fitness & Power Game',
-    bio: 'Combines physical conditioning with padel training. Specializes in building explosive power, endurance, and an aggressive playing style.',
-    level: 'Pro', rate: 7000, initial: 'FM',
-    availability: [
-      { day: 'Mon', slots: ['7:00 PM', '8:00 PM'] },
-      { day: 'Wed', slots: ['6:00 PM', '7:00 PM', '8:00 PM'] },
-      { day: 'Fri', slots: ['5:00 PM', '6:00 PM'] },
-      { day: 'Sun', slots: ['10:00 AM', '11:00 AM', '12:00 PM'] },
-    ],
-  },
-]
+// Fallback data removed — coaches load from Supabase only
 
 function CoachCard({ coach, onSelect }: { coach: Coach; onSelect: () => void }) {
   return (
@@ -188,7 +155,8 @@ function ScheduleView({
 
 export default function CoachingPage() {
   const [userId, setUserId] = useState<string | null>(null)
-  const [coaches, setCoaches] = useState<Coach[]>(FALLBACK_COACHES)
+  const [coaches, setCoaches] = useState<Coach[]>([])
+  const [coachesLoading, setCoachesLoading] = useState(true)
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
   const [bookingConfirm, setBookingConfirm] = useState<{ coach: Coach; day: string; slot: string } | null>(null)
   const [bookedKeys, setBookedKeys] = useState<Set<string>>(new Set())
@@ -219,11 +187,11 @@ export default function CoachingPage() {
         }
       }
 
-      // Try loading coaches from Supabase
-      const { data: dbCoaches, error } = await supabase
+      // Load coaches from Supabase
+      const { data: dbCoaches } = await supabase
         .from('coaches')
         .select('*')
-      if (!error && dbCoaches && dbCoaches.length > 0) {
+      if (dbCoaches && dbCoaches.length > 0) {
         setCoaches(
           dbCoaches.map((c: any) => ({
             id: c.id,
@@ -237,6 +205,7 @@ export default function CoachingPage() {
           }))
         )
       }
+      setCoachesLoading(false)
     }
     init()
   }, [])
@@ -271,14 +240,14 @@ export default function CoachingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
-      <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+      <div className="w-full max-w-[480px] min-h-screen relative pb-24 page-transition">
         {/* Header */}
         <div className="pt-12 pb-4 px-6">
           <div className="flex items-center gap-3 mb-1">
             {selectedCoach && (
-              <button onClick={() => setSelectedCoach(null)} className="text-white/40 hover:text-white transition-colors">
+              <button onClick={() => setSelectedCoach(null)} className="text-white/40 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Go back">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -297,9 +266,25 @@ export default function CoachingPage() {
 
         {!selectedCoach ? (
           <div className="px-6 space-y-3">
-            {coaches.map((coach) => (
-              <CoachCard key={coach.id} coach={coach} onSelect={() => setSelectedCoach(coach)} />
-            ))}
+            {coachesLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : coaches.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <p className="text-white/20 text-sm font-medium">No coaches available</p>
+                <p className="text-white/10 text-xs mt-1">Check back later for coaching sessions</p>
+              </div>
+            ) : (
+              coaches.map((coach) => (
+                <CoachCard key={coach.id} coach={coach} onSelect={() => setSelectedCoach(coach)} />
+              ))
+            )}
           </div>
         ) : (
           <ScheduleView

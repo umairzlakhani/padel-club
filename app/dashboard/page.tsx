@@ -3,237 +3,199 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { motion } from 'framer-motion'
 import { supabase, getUserRole, UserRole } from '@/lib/supabase'
 import { IMAGES } from '@/lib/images'
+import { CLUBS } from '@/lib/clubs'
+import { hapticLight } from '@/lib/haptics'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
 import AvailabilityPicker, { type AvailabilityEntry } from '@/app/components/AvailabilityPicker'
 
-// ─── Mock Data (mirrors /profile) ───────────────────────────────────────────
+// ─── Quick Action Items ─────────────────────────────────────────────────────
 
-const MOCK_MATCHES = [
+const QUICK_ACTIONS = [
   {
-    id: 1,
-    date: '08/02/2026',
-    venue: 'DHA Padel Court · Karachi',
-    team1: ['U', 'A'],
-    team2: ['S', 'M'],
-    scores: [
-      [6, 2],
-      [6, 4],
-    ],
-    won: true,
-    ratingChange: +0.07,
+    label: 'Find Match',
+    href: '/matchmaking',
+    icon: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    ),
   },
   {
-    id: 2,
-    date: '01/02/2026',
-    venue: 'Clifton Padel Arena · Karachi',
-    team1: ['U', 'R'],
-    team2: ['K', 'F'],
-    scores: [
-      [4, 6],
-      [3, 6],
-    ],
-    won: false,
-    ratingChange: -0.04,
+    label: 'Book Court',
+    href: '/booking',
+    icon: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
   },
   {
-    id: 3,
-    date: '25/01/2026',
-    venue: 'Open Match · Karachi',
-    team1: ['U', 'H'],
-    team2: ['Z', 'T'],
-    scores: [
-      [6, 3],
-      [7, 5],
-    ],
-    won: true,
-    ratingChange: +0.05,
+    label: 'Tournaments',
+    href: '/tournaments',
+    icon: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16 4v12l-4-2-4 2V4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Americano',
+    href: '/americano',
+    icon: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Coaching',
+    href: '/coaching',
+    icon: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Leaderboard',
+    href: '/leaderboard',
+    icon: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
   },
 ]
 
-const LEVEL_POINTS = [
-  { month: 'Sep', value: 1.8 },
-  { month: 'Oct', value: 2.0 },
-  { month: 'Nov', value: 1.9 },
-  { month: 'Dec', value: 2.15 },
-  { month: 'Jan', value: 2.3 },
-  { month: 'Feb', value: 2.5 },
+// ─── Bank Discounts ─────────────────────────────────────────────────────────
+
+const BANK_DISCOUNTS = [
+  {
+    bank: 'HBL',
+    color: '#00A651',
+    discount: '15% OFF',
+    description: 'Court bookings with HBL cards',
+    code: 'HBL15',
+  },
+  {
+    bank: 'Meezan Bank',
+    color: '#00796B',
+    discount: '10% OFF',
+    description: 'All coaching sessions',
+    code: 'MEEZAN10',
+  },
+  {
+    bank: 'JS Bank',
+    color: '#1E3A5F',
+    discount: '20% OFF',
+    description: 'First tournament entry',
+    code: 'JSBANK20',
+  },
 ]
 
-// ─── Level Evolution Graph ──────────────────────────────────────────────────
+// ─── Courts Carousel — center, pause, slide ────────────────────────────────
 
-function LevelEvolutionGraph({ currentLevel }: { currentLevel: number }) {
-  const min = 1.5
-  const max = 3.0
-  const graphH = 120
-  const graphW = 360
-  const padX = 10
-  const padY = 10
-  const usableW = graphW - padX * 2
-  const usableH = graphH - padY * 2
+function CourtsCarousel() {
+  const [current, setCurrent] = useState(0)
 
-  const points = LEVEL_POINTS.map((pt, i) => {
-    const x = padX + (i / (LEVEL_POINTS.length - 1)) * usableW
-    const y = padY + usableH - ((pt.value - min) / (max - min)) * usableH
-    return { x, y, ...pt }
-  })
-
-  const linePath = points.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ')
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${graphH} L ${points[0].x} ${graphH} Z`
-  const lastPt = points[points.length - 1]
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % CLUBS.length)
+    }, 3000) // 3s per card (pause included via spring ease)
+    return () => clearInterval(timer)
+  }, [])
 
   return (
-    <div className="relative">
-      <svg width="100%" height="140" viewBox={`0 0 ${graphW} ${graphH + 20}`} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="dashGreenGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 1, 2, 3].map((i) => (
-          <line
+    <div className="overflow-hidden -mx-6">
+      <motion.div
+        className="flex gap-4 pl-6"
+        animate={{ x: -(current * 290) }}
+        transition={{ type: 'spring', stiffness: 200, damping: 30 }}
+      >
+        {CLUBS.map((club, i) => {
+          const isActive = i === current
+          return (
+            <Link
+              key={club.id}
+              href={`/booking?club=${club.id}`}
+              onClick={() => hapticLight()}
+              className="flex-shrink-0 active:scale-[0.98] transition-all"
+              style={{ width: 274 }}
+            >
+              <motion.div
+                animate={{
+                  scale: isActive ? 1 : 0.92,
+                  opacity: isActive ? 1 : 0.5,
+                }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                className="bg-[#111] rounded-2xl border border-white/5 overflow-hidden"
+                style={{ borderColor: isActive ? 'rgba(0,255,136,0.15)' : undefined }}
+              >
+                <div className="relative w-full h-36">
+                  <Image
+                    src={club.imageUrl}
+                    alt={club.name}
+                    fill
+                    sizes="274px"
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                  <div className="absolute bottom-3 left-4 right-4">
+                    <h4 className="text-base font-bold drop-shadow-lg">{club.name}</h4>
+                    <p className="text-white/50 text-[11px] drop-shadow">{club.location}</p>
+                  </div>
+                </div>
+                <div className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-white/30 bg-white/5 px-2 py-1 rounded-md">{club.courts} courts</span>
+                  </div>
+                  <span className="text-[12px] font-bold text-[#00ff88]">
+                    PKR {club.pricePerHour.toLocaleString()}<span className="text-white/20 font-normal text-[10px]">/hr</span>
+                  </span>
+                </div>
+              </motion.div>
+            </Link>
+          )
+        })}
+      </motion.div>
+
+      {/* Dots indicator */}
+      <div className="flex justify-center gap-1.5 mt-3">
+        {CLUBS.map((_, i) => (
+          <button
             key={i}
-            x1={padX}
-            y1={padY + (i / 3) * usableH}
-            x2={graphW - padX}
-            y2={padY + (i / 3) * usableH}
-            stroke="rgba(255,255,255,0.04)"
-            strokeWidth="1"
+            onClick={() => setCurrent(i)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              i === current ? 'w-5 bg-[#00ff88]' : 'w-1.5 bg-white/10'
+            }`}
+            aria-label={`Go to court ${i + 1}`}
           />
         ))}
-        <path d={areaPath} fill="url(#dashGreenGrad)" />
-        <path d={linePath} fill="none" stroke="#3B82F6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx={lastPt.x} cy={lastPt.y} r="5" fill="#3B82F6" />
-        <circle cx={lastPt.x} cy={lastPt.y} r="8" fill="#3B82F6" fillOpacity="0.25" />
-        {points.map((pt) => (
-          <text key={pt.month} x={pt.x} y={graphH + 14} fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="middle" fontWeight="600">
-            {pt.month}
-          </text>
-        ))}
-      </svg>
-      <div className="absolute top-2 right-2 bg-[#3B82F6] text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-lg shadow-blue-500/30">
-        {currentLevel.toFixed(1)}
       </div>
     </div>
   )
 }
 
-// ─── Match Card ─────────────────────────────────────────────────────────────
-
-function MatchCard({ match }: { match: (typeof MOCK_MATCHES)[0] }) {
-  const isWin = match.won
-  return (
-    <div className="bg-[#111] rounded-2xl border border-white/5 overflow-hidden hover:border-white/10 transition-all">
-      <div className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex -space-x-2">
-              {match.team1.map((initial, i) => (
-                <div
-                  key={i}
-                  className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#111] flex items-center justify-center"
-                >
-                  <span className="text-[11px] font-bold text-white/70">{initial}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              {match.scores.map((set, i) => (
-                <div key={i} className="text-center">
-                  <span className={`text-sm font-bold block ${set[0] > set[1] ? 'text-white' : 'text-white/40'}`}>{set[0]}</span>
-                  <span className={`text-sm font-bold block ${set[1] > set[0] ? 'text-white' : 'text-white/40'}`}>{set[1]}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex -space-x-2">
-              {match.team2.map((initial, i) => (
-                <div
-                  key={i}
-                  className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border-2 border-[#111] flex items-center justify-center"
-                >
-                  <span className="text-[11px] font-bold text-white/50">{initial}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="text-right pl-3 border-l border-white/5 min-w-[56px]">
-            <span className={`text-[11px] font-bold uppercase block ${isWin ? 'text-[#00ff88]' : 'text-red-400'}`}>
-              {isWin ? 'Win' : 'Loss'}
-            </span>
-            <span className={`text-[11px] font-semibold block ${isWin ? 'text-[#00ff88]/70' : 'text-red-400/70'}`}>
-              {isWin ? '+' : ''}
-              {match.ratingChange.toFixed(2)}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="px-4 py-2.5 border-t border-white/5 flex justify-between items-center bg-white/[0.01]">
-        <span className="text-[10px] text-white/30 font-semibold">{match.venue}</span>
-        <span className="text-[10px] text-white/20 font-medium">{match.date}</span>
-      </div>
-    </div>
-  )
-}
+// ─── Shared Components ──────────────────────────────────────────────────────
 
 // ─── Player Dashboard ───────────────────────────────────────────────────────
 
 function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: boolean }) {
   const [profile, setProfile] = useState<any>(null)
-  const [upcomingMatches, setUpcomingMatches] = useState<any[]>([])
-  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      // Fetch profile
       const { data: prof } = await supabase
         .from('applications')
         .select('full_name, skill_level, matches_played, matches_won, avatar_url')
         .eq('id', userId)
         .single()
       setProfile(prof)
-
-      // Fetch upcoming matches: get match_ids from match_players, then fetch matches
-      const { data: mp } = await supabase
-        .from('match_players')
-        .select('match_id')
-        .eq('player_id', userId)
-
-      if (mp && mp.length > 0) {
-        const matchIds = mp.map((m: any) => m.match_id)
-        const today = new Date().toISOString().split('T')[0]
-        const { data: matches } = await supabase
-          .from('matches')
-          .select('*')
-          .in('id', matchIds)
-          .in('status', ['open', 'full'])
-          .gte('date', today)
-          .order('date', { ascending: true })
-        setUpcomingMatches(matches || [])
-
-        // For creator matches, fetch pending request counts
-        const creatorMatches = (matches || []).filter((m: any) => m.creator_id === userId)
-        if (creatorMatches.length > 0) {
-          const creatorMatchIds = creatorMatches.map((m: any) => m.id)
-          const { data: pendingRows } = await supabase
-            .from('match_players')
-            .select('match_id')
-            .in('match_id', creatorMatchIds)
-            .eq('status', 'pending')
-
-          if (pendingRows) {
-            const counts: Record<string, number> = {}
-            pendingRows.forEach((r: any) => {
-              counts[r.match_id] = (counts[r.match_id] || 0) + 1
-            })
-            setPendingCounts(counts)
-          }
-        }
-      }
-
       setLoading(false)
     }
     load()
@@ -241,28 +203,25 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
 
   if (loading) return <LoadingSpinner label="Loading dashboard..." />
 
-  const skillLevel = parseFloat(profile?.skill_level) || 2.5
-  const matchesPlayed = profile?.matches_played || 0
-  const matchesWon = profile?.matches_won || 0
-  const winRate = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0
-
   return (
     <div className={`${inTabs ? 'pt-2' : ''} pb-24`}>
       {/* Hero Banner */}
       {!inTabs && (
-        <div className="relative w-full aspect-[2.5/1] overflow-hidden">
+        <div className="relative w-full aspect-[2/1] overflow-hidden">
           <Image
             src={IMAGES.dashboardHero}
             alt="Match Day"
             fill
-            unoptimized
+            sizes="(max-width: 480px) 100vw, 480px"
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/30 to-transparent" />
-          <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a]/50 to-transparent" />
+          <div className="absolute bottom-5 left-6 right-6 flex items-end justify-between">
             <div>
-              <p className="text-white/60 text-xs font-semibold uppercase tracking-wider mb-1">Welcome back</p>
+              <p className="text-[#00ff88] text-[10px] font-bold uppercase tracking-widest mb-1">Welcome back</p>
               <h1 className="text-2xl font-bold tracking-tight">{profile?.full_name || 'Player'}</h1>
+              <p className="text-white/40 text-xs mt-1">Ready to play?</p>
             </div>
             <div className="flex gap-2">
               <Link href="/add-player" className="w-10 h-10 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10" aria-label="Friends">
@@ -282,7 +241,7 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
       {inTabs && (
         <div className="px-6 pt-4 mb-4 flex items-center justify-between">
           <div>
-            <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-1">Welcome back</p>
+            <p className="text-[#00ff88] text-[10px] font-bold uppercase tracking-widest mb-1">Welcome back</p>
             <h1 className="text-2xl font-bold tracking-tight">{profile?.full_name || 'Player'}</h1>
           </div>
           <div className="flex gap-2">
@@ -301,100 +260,105 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
       )}
 
       <div className="px-6 pt-6">
-      {/* Stat Cards */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
-          <p className="text-2xl font-bold text-[#00ff88]">{skillLevel.toFixed(1)}</p>
-          <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Skill Level</p>
-        </div>
-        <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
-          <p className="text-2xl font-bold">{matchesPlayed}</p>
-          <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Matches</p>
-        </div>
-        <div className="bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
-          <p className="text-2xl font-bold">{winRate}%</p>
-          <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-1">Win Rate</p>
-        </div>
-      </div>
 
-      {/* Upcoming Games */}
+      {/* ── Featured Promo Banner ── */}
       <section className="mb-8">
-        <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">My Upcoming Games</h3>
-        {upcomingMatches.length === 0 ? (
-          <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
-            <p className="text-white/20 text-sm mb-3">No upcoming games</p>
-            <Link
-              href="/matchmaking"
-              className="inline-block px-5 py-2.5 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl"
+        <Link href="/matchmaking" onClick={() => hapticLight()}>
+          <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#00ff88]/20 via-[#00ff88]/5 to-transparent border border-[#00ff88]/10 p-5">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#00ff88]/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-[#00ff88]/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="relative">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#00ff88] mb-1">This Week</p>
+              <h3 className="text-lg font-bold mb-1">Find Your Next Match</h3>
+              <p className="text-white/40 text-xs mb-3">Skill-based matchmaking with players in Karachi</p>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#00ff88] uppercase tracking-wider">
+                Play Now
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </span>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      {/* ── Quick Actions ── */}
+      <section className="mb-8">
+        <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Quick Actions</h3>
+        <div className="grid grid-cols-3 gap-3">
+          {QUICK_ACTIONS.map((action, i) => (
+            <motion.div
+              key={action.href}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05, type: 'spring', stiffness: 300, damping: 30 }}
             >
-              Find a Match
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {upcomingMatches.slice(0, 3).map((match) => (
-              <div key={match.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-bold">{match.venue}</span>
-                  <div className="flex items-center gap-2">
-                    {pendingCounts[match.id] > 0 && (
-                      <Link
-                        href="/matchmaking"
-                        className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400"
-                      >
-                        {pendingCounts[match.id]} pending
-                      </Link>
-                    )}
-                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                      match.status === 'full' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
-                    }`}>
-                      {match.status === 'full' ? 'Full' : 'Open'}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-white/40 text-xs">
-                  <span>{new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-                  <span>·</span>
-                  <span>{match.time}</span>
-                  <span>·</span>
-                  <span>{match.current_players}/{match.max_players} players</span>
-                </div>
-              </div>
-            ))}
-            {upcomingMatches.length > 3 && (
               <Link
-                href="/matchmaking"
-                className="block text-center py-2.5 text-[11px] font-bold text-[#00ff88] uppercase tracking-wider hover:underline"
+                href={action.href}
+                onClick={() => hapticLight()}
+                className="bg-[#111] rounded-2xl border border-white/5 p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform relative overflow-hidden group"
               >
-                See all {upcomingMatches.length} games
+                <div className="absolute inset-0 bg-gradient-to-b from-[#00ff88]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <span className="text-[#00ff88] relative">{action.icon}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 relative">{action.label}</span>
               </Link>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* Level Evolution */}
-      <section className="mb-8">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Level Evolution</h3>
-        </div>
-        <div className="bg-[#111] rounded-2xl border border-white/5 p-4 overflow-hidden">
-          <LevelEvolutionGraph currentLevel={skillLevel} />
-        </div>
-      </section>
-
-      {/* Last Matches */}
-      <section>
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Last Matches</h3>
-          <Link href="/profile" className="text-[10px] text-[#00ff88] font-semibold uppercase hover:underline">See all</Link>
-        </div>
-        <div className="space-y-3">
-          {MOCK_MATCHES.map((match) => (
-            <MatchCard key={match.id} match={match} />
+            </motion.div>
           ))}
         </div>
       </section>
+
+      {/* ── Courts — infinite marquee ── */}
+      <section className="mb-8">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Courts</h3>
+          <Link href="/booking" className="text-[10px] text-[#00ff88] font-semibold uppercase hover:underline">See all</Link>
+        </div>
+        <CourtsCarousel />
+      </section>
+
+      {/* ── Bank Discounts ── */}
+      <section className="mb-8">
+        <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Bank Discounts</h3>
+        <div className="space-y-3">
+          {BANK_DISCOUNTS.map((deal) => (
+            <motion.div
+              key={deal.bank}
+              whileTap={{ scale: 0.98 }}
+              className="bg-[#111] rounded-2xl border border-white/5 p-4 flex items-center gap-4 overflow-hidden relative"
+            >
+              {/* Bank accent bar */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: deal.color }} />
+
+              {/* Bank logo circle */}
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-[11px] font-black tracking-tight"
+                style={{ backgroundColor: `${deal.color}15`, color: deal.color }}
+              >
+                {deal.bank.split(' ').map(w => w[0]).join('')}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h4 className="text-sm font-bold">{deal.bank}</h4>
+                  <span
+                    className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: `${deal.color}20`, color: deal.color }}
+                  >
+                    {deal.discount}
+                  </span>
+                </div>
+                <p className="text-white/30 text-[11px]">{deal.description}</p>
+              </div>
+
+              <div className="flex-shrink-0 text-right">
+                <p className="text-[10px] text-white/20 uppercase font-bold tracking-wider">Code</p>
+                <p className="text-xs font-bold text-white/60 font-mono">{deal.code}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
       </div>
     </div>
   )

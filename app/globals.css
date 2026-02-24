@@ -24,20 +24,72 @@
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+/* ── iOS WebView & native-app feel ─────────────────────────── */
+
+html {
+  height: 100%;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
 }
 
-button, [role="button"] {
-  transition: transform 0.1s ease;
+body {
+  min-height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+  background: #0a0a0a;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+
+  /* Prevent text selection — feels native */
+  -webkit-user-select: none;
+  user-select: none;
+
+  /* Disable callout on long press */
+  -webkit-touch-callout: none;
+
+  /* Disable tap highlight */
+  -webkit-tap-highlight-color: transparent;
 }
-button:active, [role="button"]:active {
-  transform: scale(0.98);
+
+/* ── Kill 300ms tap delay globally ─────────────────────────── */
+
+*, *::before, *::after {
+  touch-action: manipulation;
 }
+
+/* Allow text selection in input/textarea */
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Smooth momentum scrolling on all scrollable areas */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbars but keep scrollable */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ── Toast animation ───────────────────────────────────────── */
 
 @keyframes slideDown {
   from { opacity: 0; transform: translate(-50%, -20px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Safe area padding for iOS notch / home indicator ──────── */
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

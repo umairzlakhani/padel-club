@@ -19,7 +19,7 @@ export default function Toast({ message, type = 'success', visible, onClose }: T
   if (!visible) return null
 
   return (
-    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] max-w-[440px] w-[calc(100%-48px)] animate-[slideDown_0.3s_ease-out]">
+    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] max-w-[440px] w-[calc(100%-48px)] animate-[slideDown_0.3s_ease-out]" role="alert" aria-live="assertive">
       <div
         className={`px-4 py-3 rounded-xl border backdrop-blur-lg flex items-center gap-3 shadow-2xl ${
           type === 'success'
@@ -29,7 +29,7 @@ export default function Toast({ message, type = 'success', visible, onClose }: T
       >
         <span className="text-lg">{type === 'success' ? '\u2713' : '\u2717'}</span>
         <span className="text-sm font-semibold flex-1">{message}</span>
-        <button onClick={onClose} className="text-white/30 hover:text-white/60 transition-colors text-lg leading-none">
+        <button onClick={onClose} className="text-white/30 hover:text-white/60 transition-colors text-lg leading-none min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Close notification">
           &times;
         </button>
       </div>

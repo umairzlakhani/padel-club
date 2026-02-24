@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
+import Avatar from '@/app/components/Avatar'
 import Link from 'next/link'
 
 type Player = {
@@ -71,23 +72,9 @@ export default function LeaderboardPage() {
     )
   }
 
-  function PlayerAvatar({ player, size, className = '' }: { player: Player; size: 'sm' | 'md' | 'lg'; className?: string }) {
-    const dims = size === 'lg' ? 'w-16 h-16' : size === 'md' ? 'w-14 h-14' : 'w-10 h-10'
-    const textSize = size === 'lg' ? 'text-xl' : size === 'md' ? 'text-lg' : 'text-sm'
-
-    if (player.avatar_url) {
-      return <img src={player.avatar_url} alt={player.full_name} className={`${dims} rounded-full object-cover ${className}`} />
-    }
-    return (
-      <div className={`${dims} rounded-full flex items-center justify-center ${className}`}>
-        <span className={`${textSize} font-bold`}>{player.full_name.charAt(0)}</span>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
-      <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+      <div className="w-full max-w-[480px] min-h-screen relative pb-24 page-transition">
         {/* Header */}
         <div className="pt-12 pb-4 px-6">
           <h1 className="text-2xl font-bold tracking-tight mb-1">Leaderboard</h1>
@@ -122,8 +109,9 @@ export default function LeaderboardPage() {
             <div className="flex items-end justify-center gap-3">
               {/* 2nd Place */}
               <Link href={`/profile/${sorted[1].id}`} className="flex flex-col items-center flex-1 group">
-                <PlayerAvatar
-                  player={sorted[1]}
+                <Avatar
+                  src={sorted[1].avatar_url}
+                  name={sorted[1].full_name}
                   size="md"
                   className="border-2 border-white/10 mb-2 group-hover:border-white/30 transition-all"
                 />
@@ -138,9 +126,11 @@ export default function LeaderboardPage() {
 
               {/* 1st Place */}
               <Link href={`/profile/${sorted[0].id}`} className="flex flex-col items-center flex-1 group">
-                <PlayerAvatar
-                  player={sorted[0]}
+                <Avatar
+                  src={sorted[0].avatar_url}
+                  name={sorted[0].full_name}
                   size="lg"
+                  highlight
                   className="border-2 border-[#00ff88]/40 mb-2 shadow-lg shadow-[#00ff88]/10 group-hover:border-[#00ff88]/60 transition-all"
                 />
                 <div className="bg-[#00ff88]/5 rounded-xl w-full pt-8 pb-3 text-center border border-[#00ff88]/20 group-hover:border-[#00ff88]/40 transition-all">
@@ -154,8 +144,9 @@ export default function LeaderboardPage() {
 
               {/* 3rd Place */}
               <Link href={`/profile/${sorted[2].id}`} className="flex flex-col items-center flex-1 group">
-                <PlayerAvatar
-                  player={sorted[2]}
+                <Avatar
+                  src={sorted[2].avatar_url}
+                  name={sorted[2].full_name}
                   size="md"
                   className="border-2 border-white/10 mb-2 group-hover:border-white/30 transition-all"
                 />
@@ -195,25 +186,12 @@ export default function LeaderboardPage() {
                   </div>
 
                   {/* Avatar */}
-                  {player.avatar_url ? (
-                    <img
-                      src={player.avatar_url}
-                      alt={player.full_name}
-                      className={`w-10 h-10 rounded-full object-cover shrink-0 ${
-                        isCurrentUser ? 'border border-[#00ff88]/30' : 'border border-white/10'
-                      }`}
-                    />
-                  ) : (
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                      isCurrentUser
-                        ? 'bg-[#00ff88]/10 border border-[#00ff88]/30'
-                        : 'bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border border-white/10'
-                    }`}>
-                      <span className={`text-sm font-bold ${isCurrentUser ? 'text-[#00ff88]' : 'text-white/50'}`}>
-                        {player.full_name.charAt(0)}
-                      </span>
-                    </div>
-                  )}
+                  <Avatar
+                    src={player.avatar_url}
+                    name={player.full_name}
+                    size="sm"
+                    highlight={isCurrentUser}
+                  />
 
                   {/* Name + Stats */}
                   <div className="flex-1 min-w-0">

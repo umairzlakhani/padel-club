@@ -482,6 +482,15 @@ export default function MatchmakingPage() {
       showToast('Please fill in all fields', 'error')
       return
     }
+    const today = new Date().toISOString().split('T')[0]
+    if (newDate < today) {
+      showToast('Date cannot be in the past', 'error')
+      return
+    }
+    if (parseFloat(newSkillMin) >= parseFloat(newSkillMax)) {
+      showToast('Min skill must be less than max skill', 'error')
+      return
+    }
     setCreating(true)
     try {
       const { data: newMatch, error } = await supabase

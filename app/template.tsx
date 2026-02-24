@@ -1,12 +1,19 @@
 'use client'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 
 export default function Template({ children }: { children: React.ReactNode }) {
+  const prefersReducedMotion = useReducedMotion()
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+      initial={prefersReducedMotion ? false : { opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={prefersReducedMotion ? { duration: 0 } : {
+        type: 'spring',
+        stiffness: 300,
+        damping: 30,
+      }}
+      style={{ minHeight: '100dvh' }}
     >
       {children}
     </motion.div>
