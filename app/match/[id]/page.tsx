@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { CLUBS } from '@/lib/clubs'
+import { IMAGES } from '@/lib/images'
 import { hapticLight, hapticMedium } from '@/lib/haptics'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
@@ -233,7 +234,13 @@ export default function MatchDetailPage() {
               className="object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e]" />
+            <Image
+              src={IMAGES.matchHero}
+              alt="Padel court"
+              fill
+              sizes="(max-width: 480px) 100vw, 480px"
+              className="object-cover"
+            />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
 
