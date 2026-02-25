@@ -624,6 +624,8 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
   const [editCoachData, setEditCoachData] = useState<any>({})
   const [savingCoach, setSavingCoach] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -691,6 +693,32 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
       )
     }
     setApprovingId(null)
+  }
+
+  async function handleDelete(id: string) {
+    setDeletingId(id)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    const res = await fetch('/api/delete-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ id }),
+    })
+
+    const result = await res.json()
+
+    if (!res.ok || result.error) {
+      console.error('Delete error:', result.error)
+    } else {
+      setApplications((prev) => prev.filter((app) => app.id !== id))
+    }
+    setDeletingId(null)
+    setConfirmDeleteId(null)
   }
 
   function buildWhatsAppUrl(app: Application) {
@@ -842,7 +870,7 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
                   <span>·</span>
                   <span>{app.whatsapp_number}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <a
                     href={buildWhatsAppUrl(app)}
                     target="_blank"
@@ -870,6 +898,33 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
                           Approve
                         </>
                       )}
+                    </button>
+                  )}
+                  {confirmDeleteId === app.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleDelete(app.id)}
+                        disabled={deletingId === app.id}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/15 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-50"
+                      >
+                        {deletingId === app.id ? 'Deleting...' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40 hover:text-white/60 transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(app.id)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400/60 hover:border-red-500/40 hover:text-red-400 transition-all"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                      </svg>
+                      Delete
                     </button>
                   )}
                 </div>
