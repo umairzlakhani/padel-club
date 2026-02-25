@@ -1,8 +1,12 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
+
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
+const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }
 
 type Coach = {
   id: string
@@ -281,9 +285,13 @@ export default function CoachingPage() {
                 <p className="text-white/10 text-xs mt-1">Check back later for coaching sessions</p>
               </div>
             ) : (
-              coaches.map((coach) => (
-                <CoachCard key={coach.id} coach={coach} onSelect={() => setSelectedCoach(coach)} />
-              ))
+              <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
+                {coaches.map((coach) => (
+                  <motion.div key={coach.id} variants={fadeUp}>
+                    <CoachCard coach={coach} onSelect={() => setSelectedCoach(coach)} />
+                  </motion.div>
+                ))}
+              </motion.div>
             )}
           </div>
         ) : (

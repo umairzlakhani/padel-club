@@ -62,7 +62,22 @@ function LoginForm() {
     <div className="min-h-screen bg-[#0b0d14] text-white flex items-center justify-center p-6 font-sans">
       <div className="max-w-md w-full bg-[#1a1c2e] rounded-3xl p-8 border border-white/5 shadow-2xl">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-2">🎾</div>
+          <div className="mb-2">
+            <svg width="48" height="48" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto">
+              <ellipse cx="32" cy="22" rx="16" ry="20" stroke="#00ff88" strokeWidth="3" fill="none" />
+              <circle cx="26" cy="14" r="2.5" fill="#00ff88" opacity="0.4" />
+              <circle cx="32" cy="14" r="2.5" fill="#00ff88" opacity="0.4" />
+              <circle cx="38" cy="14" r="2.5" fill="#00ff88" opacity="0.4" />
+              <circle cx="26" cy="22" r="2.5" fill="#00ff88" opacity="0.4" />
+              <circle cx="32" cy="22" r="2.5" fill="#00ff88" opacity="0.4" />
+              <circle cx="38" cy="22" r="2.5" fill="#00ff88" opacity="0.4" />
+              <circle cx="29" cy="30" r="2.5" fill="#00ff88" opacity="0.4" />
+              <circle cx="35" cy="30" r="2.5" fill="#00ff88" opacity="0.4" />
+              <rect x="29" y="42" width="6" height="16" rx="3" fill="#00ff88" />
+              <line x1="29" y1="48" x2="35" y2="48" stroke="#1a1c2e" strokeWidth="1" />
+              <line x1="29" y1="52" x2="35" y2="52" stroke="#1a1c2e" strokeWidth="1" />
+            </svg>
+          </div>
           <h1 className="text-2xl font-black uppercase tracking-tighter italic">Player Login</h1>
           <p className="text-gray-400 text-sm">Sign in to Match Day</p>
         </div>

@@ -1,9 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
 import Avatar from '@/app/components/Avatar'
 import Link from 'next/link'
+
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
+const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }
+const scaleIn = { hidden: { opacity: 0, scale: 0.7 }, show: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 300, damping: 20 } } }
 
 type Player = {
   id: string
@@ -105,10 +110,11 @@ export default function LeaderboardPage() {
 
         {/* Top 3 Podium */}
         {sorted.length >= 3 && (
-          <div className="px-6 mb-5">
+          <motion.div variants={stagger} initial="hidden" animate="show" className="px-6 mb-5">
             <div className="flex items-end justify-center gap-3">
               {/* 2nd Place */}
-              <Link href={`/profile/${sorted[1].id}`} className="flex flex-col items-center flex-1 group">
+              <motion.div variants={scaleIn} className="flex-1">
+              <Link href={`/profile/${sorted[1].id}`} className="flex flex-col items-center group">
                 <Avatar
                   src={sorted[1].avatar_url}
                   name={sorted[1].full_name}
@@ -123,9 +129,11 @@ export default function LeaderboardPage() {
                   </span>
                 </div>
               </Link>
+              </motion.div>
 
               {/* 1st Place */}
-              <Link href={`/profile/${sorted[0].id}`} className="flex flex-col items-center flex-1 group">
+              <motion.div variants={scaleIn} className="flex-1">
+              <Link href={`/profile/${sorted[0].id}`} className="flex flex-col items-center group">
                 <Avatar
                   src={sorted[0].avatar_url}
                   name={sorted[0].full_name}
@@ -141,9 +149,11 @@ export default function LeaderboardPage() {
                   </span>
                 </div>
               </Link>
+              </motion.div>
 
               {/* 3rd Place */}
-              <Link href={`/profile/${sorted[2].id}`} className="flex flex-col items-center flex-1 group">
+              <motion.div variants={scaleIn} className="flex-1">
+              <Link href={`/profile/${sorted[2].id}`} className="flex flex-col items-center group">
                 <Avatar
                   src={sorted[2].avatar_url}
                   name={sorted[2].full_name}
@@ -158,19 +168,20 @@ export default function LeaderboardPage() {
                   </span>
                 </div>
               </Link>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Full Rankings List */}
         <div className="px-6">
           <h3 className="text-xs uppercase font-bold tracking-wider text-white/30 mb-3">Full Rankings</h3>
-          <div className="space-y-2">
+          <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2">
             {sorted.map((player, index) => {
               const isCurrentUser = player.id === currentUserId
               return (
+                <motion.div key={player.id} variants={fadeUp}>
                 <Link
-                  key={player.id}
                   href={`/profile/${player.id}`}
                   className={`flex items-center gap-3 p-3 rounded-xl border transition-all block ${
                     isCurrentUser
@@ -226,6 +237,7 @@ export default function LeaderboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
                 </Link>
+                </motion.div>
               )
             })}
 
@@ -235,7 +247,7 @@ export default function LeaderboardPage() {
                 <p className="text-white/10 text-xs mt-1">Members will appear here once approved</p>
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       </div>
       <BottomNav />

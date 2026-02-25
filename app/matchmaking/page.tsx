@@ -733,11 +733,17 @@ export default function MatchmakingPage() {
         {myMatches.length > 0 && (
           <div className="px-6 mt-8 pb-6">
             <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">My Matches</h3>
-            <div className="space-y-3">
+            <motion.div
+              initial="hidden"
+              animate="show"
+              variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
+              className="space-y-3"
+            >
               {myMatches.map((match) => {
                 const spotsLeft = match.max_players - match.current_players
                 return (
-                  <Link key={match.id} href={`/match/${match.id}`}>
+                  <motion.div key={match.id} variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }}>
+                  <Link href={`/match/${match.id}`}>
                     <motion.div
                       whileTap={{ scale: 0.98 }}
                       className="bg-[#111] rounded-2xl border border-white/5 p-4 active:bg-white/5 transition-colors"
@@ -770,9 +776,10 @@ export default function MatchmakingPage() {
                       </div>
                     </motion.div>
                   </Link>
+                  </motion.div>
                 )
               })}
-            </div>
+            </motion.div>
           </div>
         )}
       </div>

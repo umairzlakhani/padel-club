@@ -6,14 +6,10 @@ export default function Template({ children }: { children: React.ReactNode }) {
 
   return (
     <motion.div
-      initial={prefersReducedMotion ? false : { opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={prefersReducedMotion ? { duration: 0 } : {
-        type: 'spring',
-        stiffness: 300,
-        damping: 30,
-      }}
-      style={{ minHeight: '100dvh' }}
+      initial={prefersReducedMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.3, ease: 'easeOut' }}
+      style={{ minHeight: '100dvh', overflowY: 'auto' }}
     >
       {children}
     </motion.div>
