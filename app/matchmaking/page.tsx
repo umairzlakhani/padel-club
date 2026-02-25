@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { hapticLight, hapticMedium } from '@/lib/haptics'
@@ -120,33 +121,37 @@ function SwipeCard({
             <span className="text-xs font-bold text-white/60">Level {match.skill_min.toFixed(1)} – {match.skill_max.toFixed(1)}</span>
           </div>
 
-          {/* Player Avatars */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* Player Slots */}
+          <div className="flex items-center gap-3 mb-4">
             {match.players.map((player) => (
-              <div
-                key={player.id}
-                className="w-11 h-11 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border border-white/10 flex items-center justify-center"
-                title={`${player.full_name} (${player.skill_level})`}
-              >
-                <span className="text-xs font-bold text-white/60">{player.full_name?.charAt(0) || '?'}</span>
+              <div key={player.id} className="flex flex-col items-center gap-0.5">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#00ff88] flex items-center justify-center">
+                  <span className="text-xs font-bold text-white/70">{player.full_name?.charAt(0) || '?'}</span>
+                </div>
+                <span className="text-[8px] text-white/40 font-semibold truncate max-w-[44px]">{player.full_name?.split(' ')[0]}</span>
               </div>
             ))}
             {Array.from({ length: Math.max(0, spotsLeft) }).map((_, i) => (
-              <div
-                key={`empty-${i}`}
-                className="w-11 h-11 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center"
-              >
-                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.15)" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
+              <div key={`empty-${i}`} className="flex flex-col items-center gap-0.5">
+                <div className="w-11 h-11 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                <span className="text-[8px] text-white/20 font-semibold">Open</span>
               </div>
             ))}
           </div>
 
-          {/* Spots + Creator */}
+          {/* Spots + Creator + View */}
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-[#00ff88]">{spotsLeft} {spotsLeft === 1 ? 'spot' : 'spots'} left</span>
-            <span className="text-xs text-white/30">by {match.creator_name}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-white/30">by {match.creator_name}</span>
+              <Link href={`/match/${match.id}`} className="text-[10px] font-bold text-[#00ff88] uppercase tracking-wider hover:underline" onClick={(e) => e.stopPropagation()}>
+                Details →
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -155,6 +160,7 @@ function SwipeCard({
 }
 
 export default function MatchmakingPage() {
+  const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
   const [userLevel, setUserLevel] = useState(2.5)
@@ -535,7 +541,8 @@ export default function MatchmakingPage() {
       setNewDate('')
       setNewTime('')
       setNewVenue('')
-      await loadCards(userId, userLevel)
+      // Navigate to the new match detail page
+      router.push(`/match/${newMatch.id}`)
     } catch {
       showToast('Something went wrong', 'error')
     }

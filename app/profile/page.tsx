@@ -375,23 +375,41 @@ export default function ProfilePage() {
                 ) : (
                   <div className="space-y-3">
                     {upcomingGames.map((match: any) => (
-                      <div key={match.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-bold">{match.venue}</span>
-                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                            match.status === 'full' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
-                          }`}>
-                            {match.status === 'full' ? 'Full' : 'Open'}
-                          </span>
+                      <Link key={match.id} href={`/match/${match.id}`}>
+                        <div className="bg-[#111] rounded-2xl border border-white/5 p-4 active:scale-[0.98] transition-transform">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-bold">{match.venue}</span>
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                              match.status === 'full' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
+                            }`}>
+                              {match.status === 'full' ? 'Full' : 'Open'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-white/40 text-xs mb-3">
+                            <span>{new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                            <span>·</span>
+                            <span>{match.time}</span>
+                          </div>
+                          {/* Mini player slots */}
+                          <div className="flex items-center gap-2">
+                            {Array.from({ length: match.current_players || 0 }).map((_, i) => (
+                              <div key={`filled-${i}`} className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#00ff88] flex items-center justify-center">
+                                <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="#00ff88" strokeWidth="2.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            ))}
+                            {Array.from({ length: Math.max(0, (match.max_players || 4) - (match.current_players || 0)) }).map((_, i) => (
+                              <div key={`empty-${i}`} className="w-8 h-8 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
+                                <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                              </div>
+                            ))}
+                            <span className="text-[10px] text-white/30 ml-1">{match.current_players}/{match.max_players}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 text-white/40 text-xs">
-                          <span>{new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-                          <span>·</span>
-                          <span>{match.time}</span>
-                          <span>·</span>
-                          <span>{match.current_players}/{match.max_players} players</span>
-                        </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}
