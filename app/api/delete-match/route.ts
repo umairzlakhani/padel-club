@@ -37,11 +37,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing match id" }, { status: 400 });
   }
 
+  // Use service role client for deletion (bypasses RLS)
   // Delete match_players first (foreign key)
-  await supabaseAdmin
+  const { error: mpError } = await supabaseAdmin
     .from("match_players")
     .delete()
     .eq("match_id", id);
+
+  if (mpError) {
+    console.error("Delete match_players error:", mpError);
+    // Try with user's authenticated client as fallback
+    const userClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } }
+    );
+    await userClient.from("match_players").delete().eq("match_id", id);
+  }
 
   // Delete the match
   const { error: deleteError } = await supabaseAdmin
@@ -50,7 +62,21 @@ export async function POST(req: NextRequest) {
     .eq("id", id);
 
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    console.error("Delete match error (admin):", deleteError);
+    // Fallback: try with user's authenticated client
+    const userClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } }
+    );
+    const { error: userDeleteError } = await userClient
+      .from("matches")
+      .delete()
+      .eq("id", id);
+
+    if (userDeleteError) {
+      return NextResponse.json({ error: userDeleteError.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ success: true });

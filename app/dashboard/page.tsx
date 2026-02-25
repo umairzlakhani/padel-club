@@ -761,6 +761,7 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
 
     if (!res.ok || result.error) {
       console.error('Delete match error:', result.error)
+      alert(`Delete failed: ${result.error || 'Unknown error'}`)
     } else {
       setMatches((prev) => prev.filter((m) => m.id !== matchId))
     }
