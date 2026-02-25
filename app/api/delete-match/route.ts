@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
@@ -10,18 +9,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing authorization token" }, { status: 401 });
   }
 
-  const supabaseAuth = createClient(
+  // Use the caller's authenticated session (RLS policies will apply)
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
   );
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
   if (authError || !user) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
   }
 
   // Check caller is admin
-  const { data: caller } = await supabaseAdmin
+  const { data: caller } = await supabase
     .from("applications")
     .select("role")
     .eq("id", user.id)
@@ -37,43 +39,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing match id" }, { status: 400 });
   }
 
-  // Check if service role key is actually set (not falling back to anon)
-  const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Delete match_players first (foreign key)
+  const { error: mpError } = await supabase
+    .from("match_players")
+    .delete()
+    .eq("match_id", id);
 
-  // Try deleting with admin client first
-  await supabaseAdmin.from("match_players").delete().eq("match_id", id);
-  const { error: adminDeleteError } = await supabaseAdmin.from("matches").delete().eq("id", id);
+  if (mpError) {
+    return NextResponse.json({ error: `Failed to delete match players: ${mpError.message}` }, { status: 500 });
+  }
 
-  // Verify the match is actually gone
-  const { data: stillExists } = await supabaseAdmin
+  // Delete the match
+  const { error: matchError } = await supabase
+    .from("matches")
+    .delete()
+    .eq("id", id);
+
+  if (matchError) {
+    return NextResponse.json({ error: `Failed to delete match: ${matchError.message}` }, { status: 500 });
+  }
+
+  // Verify it's gone
+  const { data: check } = await supabase
     .from("matches")
     .select("id")
     .eq("id", id)
     .maybeSingle();
 
-  if (stillExists) {
-    // Admin client didn't work, try with user's authenticated session
-    const userClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
-    );
-
-    await userClient.from("match_players").delete().eq("match_id", id);
-    await userClient.from("matches").delete().eq("id", id);
-
-    // Check again
-    const { data: stillExists2 } = await supabaseAdmin
-      .from("matches")
-      .select("id")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (stillExists2) {
-      return NextResponse.json({
-        error: `Match still exists after delete attempts. Service role key set: ${hasServiceRole}. Admin error: ${adminDeleteError?.message || 'none'}`,
-      }, { status: 500 });
-    }
+  if (check) {
+    return NextResponse.json({ error: "Match still exists after delete — RLS policy may be missing. Run the admin delete policy SQL in Supabase." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
