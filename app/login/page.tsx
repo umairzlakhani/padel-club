@@ -94,7 +94,7 @@ function LoginForm() {
                   value={email}
                   onChange={(e) => setUserName(e.target.value)}
                   className="w-full bg-[#0b0d14] border border-white/10 rounded-xl p-4 mt-1 focus:border-[#00ff88] outline-none"
-                  placeholder="umairlakhani@gmail.com"
+                  placeholder="you@example.com"
                   autoComplete="email"
                   required
                 />
