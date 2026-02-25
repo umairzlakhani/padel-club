@@ -35,6 +35,8 @@ export default function ProfilePage() {
   // Upcoming games + Bookings
   const [upcomingGames, setUpcomingGames] = useState<any[]>([])
   const [bookings, setBookings] = useState<any[]>([])
+  const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null)
+  const [confirmCancelBookingId, setConfirmCancelBookingId] = useState<string | null>(null)
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ visible: true, message, type })
@@ -122,6 +124,24 @@ export default function ProfilePage() {
       setShowEditProfile(false)
     }
     setEditSaving(false)
+  }
+
+  async function handleCancelBooking(bookingId: string) {
+    setCancellingBookingId(bookingId)
+    const { error } = await supabase
+      .from('court_bookings')
+      .delete()
+      .eq('id', bookingId)
+      .eq('user_id', userId!)
+
+    if (error) {
+      showToast(error.message || 'Failed to cancel booking', 'error')
+    } else {
+      setBookings((prev) => prev.filter((b) => b.id !== bookingId))
+      showToast('Booking cancelled')
+    }
+    setCancellingBookingId(null)
+    setConfirmCancelBookingId(null)
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -404,13 +424,40 @@ export default function ProfilePage() {
                             {b.status}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-white/40 text-xs">
+                        <div className="flex items-center gap-3 text-white/40 text-xs mb-3">
                           <span>{new Date(b.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
                           <span>·</span>
                           <span>{b.time_slot || b.time}</span>
                           {b.court_number && (<><span>·</span><span>Court {b.court_number}</span></>)}
                           {b.price > 0 && (<><span>·</span><span>PKR {b.price.toLocaleString()}</span></>)}
                         </div>
+                        {confirmCancelBookingId === b.id ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleCancelBooking(b.id)}
+                              disabled={cancellingBookingId === b.id}
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/15 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-50"
+                            >
+                              {cancellingBookingId === b.id ? 'Cancelling...' : 'Confirm Cancel'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmCancelBookingId(null)}
+                              className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40 hover:text-white/60 transition-all"
+                            >
+                              Keep
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmCancelBookingId(b.id)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400/60 hover:border-red-500/40 hover:text-red-400 transition-all"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                            </svg>
+                            Cancel Booking
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
