@@ -37,45 +37,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing match id" }, { status: 400 });
   }
 
-  // Use service role client for deletion (bypasses RLS)
-  // Delete match_players first (foreign key)
-  const { error: mpError } = await supabaseAdmin
-    .from("match_players")
-    .delete()
-    .eq("match_id", id);
+  // Check if service role key is actually set (not falling back to anon)
+  const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (mpError) {
-    console.error("Delete match_players error:", mpError);
-    // Try with user's authenticated client as fallback
-    const userClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
-    );
-    await userClient.from("match_players").delete().eq("match_id", id);
-  }
+  // Try deleting with admin client first
+  await supabaseAdmin.from("match_players").delete().eq("match_id", id);
+  const { error: adminDeleteError } = await supabaseAdmin.from("matches").delete().eq("id", id);
 
-  // Delete the match
-  const { error: deleteError } = await supabaseAdmin
+  // Verify the match is actually gone
+  const { data: stillExists } = await supabaseAdmin
     .from("matches")
-    .delete()
-    .eq("id", id);
+    .select("id")
+    .eq("id", id)
+    .maybeSingle();
 
-  if (deleteError) {
-    console.error("Delete match error (admin):", deleteError);
-    // Fallback: try with user's authenticated client
+  if (stillExists) {
+    // Admin client didn't work, try with user's authenticated session
     const userClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
-    const { error: userDeleteError } = await userClient
-      .from("matches")
-      .delete()
-      .eq("id", id);
 
-    if (userDeleteError) {
-      return NextResponse.json({ error: userDeleteError.message }, { status: 500 });
+    await userClient.from("match_players").delete().eq("match_id", id);
+    await userClient.from("matches").delete().eq("id", id);
+
+    // Check again
+    const { data: stillExists2 } = await supabaseAdmin
+      .from("matches")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (stillExists2) {
+      return NextResponse.json({
+        error: `Match still exists after delete attempts. Service role key set: ${hasServiceRole}. Admin error: ${adminDeleteError?.message || 'none'}`,
+      }, { status: 500 });
     }
   }
 
