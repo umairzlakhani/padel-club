@@ -620,17 +620,20 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
   const [stats, setStats] = useState({ members: 0, revenue: 0, activeMatches: 0 })
   const [applications, setApplications] = useState<Application[]>([])
   const [coaches, setCoaches] = useState<any[]>([])
+  const [matches, setMatches] = useState<any[]>([])
   const [editingCoachId, setEditingCoachId] = useState<string | null>(null)
   const [editCoachData, setEditCoachData] = useState<any>({})
   const [savingCoach, setSavingCoach] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null)
+  const [confirmDeleteMatchId, setConfirmDeleteMatchId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const [membersRes, bookingsRes, matchesRes, appsRes, coachesRes] = await Promise.all([
+      const [membersRes, bookingsRes, matchesRes, appsRes, coachesRes, allMatchesRes] = await Promise.all([
         supabase
           .from('applications')
           .select('id', { count: 'exact', head: true })
@@ -651,6 +654,10 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
         supabase
           .from('coaches')
           .select('*'),
+        supabase
+          .from('matches')
+          .select('*')
+          .order('date', { ascending: false }),
       ])
 
       const memberCount = membersRes.count || 0
@@ -659,6 +666,20 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
 
       setStats({ members: memberCount, revenue: legendsRevenue, activeMatches: activeMatchCount })
       setApplications(appsRes.data || [])
+
+      // Enrich matches with creator names
+      const allMatches = allMatchesRes.data || []
+      const creatorIds = [...new Set(allMatches.map((m: any) => m.creator_id))]
+      let creatorMap: Record<string, string> = {}
+      if (creatorIds.length > 0) {
+        const { data: creators } = await supabase
+          .from('applications')
+          .select('id, full_name')
+          .in('id', creatorIds)
+        creators?.forEach((c: any) => { creatorMap[c.id] = c.full_name })
+      }
+      setMatches(allMatches.map((m: any) => ({ ...m, creator_name: creatorMap[m.creator_id] || 'Unknown' })))
+
       setCoaches((coachesRes.data || []).map((c: any) => ({
         ...c,
         availability: typeof c.availability === 'string' ? JSON.parse(c.availability) : c.availability || [],
@@ -719,6 +740,32 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
     }
     setDeletingId(null)
     setConfirmDeleteId(null)
+  }
+
+  async function handleDeleteMatch(matchId: string) {
+    setDeletingMatchId(matchId)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    const res = await fetch('/api/delete-match', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ id: matchId }),
+    })
+
+    const result = await res.json()
+
+    if (!res.ok || result.error) {
+      console.error('Delete match error:', result.error)
+    } else {
+      setMatches((prev) => prev.filter((m) => m.id !== matchId))
+    }
+    setDeletingMatchId(null)
+    setConfirmDeleteMatchId(null)
   }
 
   function buildWhatsAppUrl(app: Application) {
@@ -919,6 +966,76 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
                   ) : (
                     <button
                       onClick={() => setConfirmDeleteId(app.id)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400/60 hover:border-red-500/40 hover:text-red-400 transition-all"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                      </svg>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Matches Management */}
+      <section className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Matches</h3>
+          <span className="text-[10px] font-bold text-white/20">{matches.length} total</span>
+        </div>
+        {matches.length === 0 ? (
+          <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
+            <p className="text-white/20 text-sm">No matches yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {matches.map((match: any) => (
+              <div key={match.id} className="bg-[#111] rounded-2xl border border-white/5 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold">{match.venue}</span>
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    match.status === 'open' ? 'bg-[#00ff88]/10 text-[#00ff88]'
+                      : match.status === 'full' ? 'bg-blue-500/10 text-blue-400'
+                      : 'bg-white/5 text-white/30'
+                  }`}>
+                    {match.status}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-white/40 text-xs mb-2">
+                  <span>{new Date(match.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                  <span>·</span>
+                  <span>{match.time}</span>
+                  <span>·</span>
+                  <span>Level {parseFloat(match.skill_min).toFixed(1)}–{parseFloat(match.skill_max).toFixed(1)}</span>
+                </div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs text-white/30">by {match.creator_name}</span>
+                  <span className="text-xs text-white/30">{match.current_players}/{match.max_players} players</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {confirmDeleteMatchId === match.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleDeleteMatch(match.id)}
+                        disabled={deletingMatchId === match.id}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/15 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-50"
+                      >
+                        {deletingMatchId === match.id ? 'Deleting...' : 'Confirm Delete'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteMatchId(null)}
+                        className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40 hover:text-white/60 transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteMatchId(match.id)}
                       className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400/60 hover:border-red-500/40 hover:text-red-400 transition-all"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

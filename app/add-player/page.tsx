@@ -194,15 +194,16 @@ export default function AddPlayerPage() {
     })
 
     if (error) {
-      setToast({ visible: true, message: 'Could not send request', type: 'error' })
+      console.error('Friend request error:', error)
+      setToast({ visible: true, message: error.message || 'Could not send request', type: 'error' })
     } else {
-      // Post to activity feed
-      await supabase.from('activity_feed').insert({
+      // Post to activity feed (non-blocking — don't let this fail the request)
+      supabase.from('activity_feed').insert({
         user_id: userId,
         type: 'friend_request',
         title: 'Sent a friend request',
         metadata: { to: playerId },
-      })
+      }).then(() => {})
       setToast({ visible: true, message: 'Friend request sent!', type: 'success' })
       await loadFriendData(userId)
     }
