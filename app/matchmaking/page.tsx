@@ -173,6 +173,7 @@ export default function MatchmakingPage() {
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
+  const [myMatches, setMyMatches] = useState<MatchCard[]>([])
 
   // Create match form state
   const [newDate, setNewDate] = useState('')
@@ -274,6 +275,54 @@ export default function MatchmakingPage() {
 
     setCards(matchCards)
     setCurrentIndex(0)
+
+    // Also fetch user's own created matches (open or full)
+    const { data: allUserMatches } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('creator_id', uid)
+      .in('status', ['open', 'full'])
+      .order('date', { ascending: true })
+    const userCreated = allUserMatches || []
+    const myMatchCards: MatchCard[] = await Promise.all(
+      userCreated.map(async (m: any) => {
+        const { data: mpData } = await supabase
+          .from('match_players')
+          .select('player_id')
+          .eq('match_id', m.id)
+          .eq('status', 'accepted')
+
+        const playerIds = (mpData || []).map((mp: any) => mp.player_id)
+        let players: PlayerInfo[] = []
+        if (playerIds.length > 0) {
+          const { data: playerData } = await supabase
+            .from('applications')
+            .select('id, full_name, skill_level')
+            .in('id', playerIds)
+          players = (playerData || []).map((p: any) => ({
+            id: p.id,
+            full_name: p.full_name,
+            skill_level: parseFloat(p.skill_level) || 2.5,
+          }))
+        }
+
+        return {
+          id: m.id,
+          date: new Date(m.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }),
+          date_raw: m.date,
+          time: m.time,
+          venue: m.venue,
+          skill_min: parseFloat(m.skill_min),
+          skill_max: parseFloat(m.skill_max),
+          max_players: m.max_players,
+          current_players: m.current_players,
+          creator_id: m.creator_id,
+          creator_name: 'You',
+          players,
+        }
+      })
+    )
+    setMyMatches(myMatchCards)
     setLoading(false)
   }, [])
 
@@ -677,6 +726,53 @@ export default function MatchmakingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </motion.button>
+          </div>
+        )}
+
+        {/* My Matches */}
+        {myMatches.length > 0 && (
+          <div className="px-6 mt-8 pb-6">
+            <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">My Matches</h3>
+            <div className="space-y-3">
+              {myMatches.map((match) => {
+                const spotsLeft = match.max_players - match.current_players
+                return (
+                  <Link key={match.id} href={`/match/${match.id}`}>
+                    <motion.div
+                      whileTap={{ scale: 0.98 }}
+                      className="bg-[#111] rounded-2xl border border-white/5 p-4 active:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-bold">{match.venue}</h4>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          spotsLeft === 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
+                        }`}>
+                          {spotsLeft === 0 ? 'Full' : `${spotsLeft} spot${spotsLeft > 1 ? 's' : ''}`}
+                        </span>
+                      </div>
+                      <p className="text-white/40 text-xs mb-3">{match.date} · {match.time}</p>
+                      <div className="flex items-center gap-2">
+                        {match.players.map((player) => (
+                          <div key={player.id} className="flex flex-col items-center gap-0.5">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#00ff88] flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-white/70">{player.full_name?.charAt(0)}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {Array.from({ length: spotsLeft }).map((_, i) => (
+                          <div key={`e-${i}`} className="w-9 h-9 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
+                            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                          </div>
+                        ))}
+                        <span className="text-[10px] text-white/30 ml-auto">Tap to manage →</span>
+                      </div>
+                    </motion.div>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
