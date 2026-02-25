@@ -128,17 +128,29 @@ export default function ProfilePage() {
 
   async function handleCancelBooking(bookingId: string) {
     setCancellingBookingId(bookingId)
-    const { error } = await supabase
-      .from('court_bookings')
-      .delete()
-      .eq('id', bookingId)
-      .eq('user_id', userId!)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
 
-    if (error) {
-      showToast(error.message || 'Failed to cancel booking', 'error')
-    } else {
-      setBookings((prev) => prev.filter((b) => b.id !== bookingId))
-      showToast('Booking cancelled')
+      const res = await fetch('/api/delete-booking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id: bookingId }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok || result.error) {
+        showToast(result.error || 'Failed to cancel booking', 'error')
+      } else {
+        setBookings((prev) => prev.filter((b) => b.id !== bookingId))
+        showToast('Booking cancelled')
+      }
+    } catch {
+      showToast('Failed to cancel booking', 'error')
     }
     setCancellingBookingId(null)
     setConfirmCancelBookingId(null)
