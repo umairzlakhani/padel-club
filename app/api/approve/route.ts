@@ -40,6 +40,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing application id" }, { status: 400 });
   }
 
+  // Confirm the user's email so they can sign in
+  const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    email_confirm: true,
+  });
+
+  if (confirmError) {
+    return NextResponse.json({ error: confirmError.message }, { status: 500 });
+  }
+
   const { data, error } = await supabaseAdmin
     .schema("public")
     .from("applications")
