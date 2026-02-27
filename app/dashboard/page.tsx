@@ -101,20 +101,48 @@ const BANK_DISCOUNTS = [
 
 function CourtsCarousel() {
   const [current, setCurrent] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const CARD_WIDTH = 274
+  const GAP = 16
+  const STEP = CARD_WIDTH + GAP
 
+  // Auto-rotate, pause when user drags
   useEffect(() => {
+    if (paused) return
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % CLUBS.length)
-    }, 3000) // 3s per card (pause included via spring ease)
+    }, 3000)
     return () => clearInterval(timer)
-  }, [])
+  }, [paused])
+
+  // Resume auto-rotate after 5s of no interaction
+  useEffect(() => {
+    if (!paused) return
+    const resume = setTimeout(() => setPaused(false), 5000)
+    return () => clearTimeout(resume)
+  }, [paused])
+
+  function handleDragEnd(_: any, info: { offset: { x: number }; velocity: { x: number } }) {
+    setPaused(true)
+    const swipe = info.offset.x + info.velocity.x * 0.3
+    if (swipe < -50) {
+      setCurrent((prev) => Math.min(prev + 1, CLUBS.length - 1))
+    } else if (swipe > 50) {
+      setCurrent((prev) => Math.max(prev - 1, 0))
+    }
+  }
 
   return (
     <div className="overflow-hidden -mx-6">
       <motion.div
-        className="flex gap-4 pl-6"
-        animate={{ x: -(current * 290) }}
+        className="flex gap-4 pl-6 cursor-grab active:cursor-grabbing"
+        animate={{ x: -(current * STEP) }}
         transition={{ type: 'spring', stiffness: 200, damping: 30 }}
+        drag="x"
+        dragConstraints={{ left: -((CLUBS.length - 1) * STEP), right: 0 }}
+        dragElastic={0.15}
+        onDragStart={() => setPaused(true)}
+        onDragEnd={handleDragEnd}
       >
         {CLUBS.map((club, i) => {
           const isActive = i === current
@@ -122,9 +150,10 @@ function CourtsCarousel() {
             <Link
               key={club.id}
               href={`/booking?club=${club.id}`}
-              onClick={() => hapticLight()}
+              onClick={(e) => { if (paused) { /* allow link clicks after settling */ } hapticLight() }}
               className="flex-shrink-0 active:scale-[0.98] transition-all"
-              style={{ width: 274 }}
+              style={{ width: CARD_WIDTH, pointerEvents: 'auto' }}
+              draggable={false}
             >
               <motion.div
                 animate={{
@@ -142,6 +171,7 @@ function CourtsCarousel() {
                     fill
                     sizes="274px"
                     className="object-cover"
+                    draggable={false}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                   <div className="absolute bottom-3 left-4 right-4">
@@ -168,7 +198,7 @@ function CourtsCarousel() {
         {CLUBS.map((_, i) => (
           <button
             key={i}
-            onClick={() => setCurrent(i)}
+            onClick={() => { setCurrent(i); setPaused(true) }}
             className={`h-1.5 rounded-full transition-all duration-300 ${
               i === current ? 'w-5 bg-[#00ff88]' : 'w-1.5 bg-white/10'
             }`}
@@ -1189,6 +1219,7 @@ export default function DashboardPage() {
   const [role, setRole] = useState<UserRole | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [memberStatus, setMemberStatus] = useState<string | null>(null)
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(true)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'profile' | 'admin'>('profile')
 
@@ -1200,16 +1231,17 @@ export default function DashboardPage() {
         return
       }
 
-      // Fetch application status
+      // Fetch application status + onboarding
       const { data } = await supabase
         .from('applications')
-        .select('status')
+        .select('status, onboarding_completed')
         .eq('id', userId)
         .single()
 
       setRole(role)
       setUserId(userId)
       setMemberStatus(data?.status || null)
+      setOnboardingCompleted(data?.onboarding_completed ?? true)
       setLoading(false)
     }
     init()
@@ -1234,6 +1266,19 @@ export default function DashboardPage() {
   // Pending gate — admins bypass this
   if (role !== 'admin' && memberStatus !== 'member') {
     return <PendingApprovalScreen />
+  }
+
+  // Onboarding gate — players who haven't completed onboarding
+  if (role !== 'admin' && role !== 'coach' && !onboardingCompleted) {
+    router.replace('/onboarding')
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
+          <span className="text-white/40 text-sm font-medium">Setting up your profile...</span>
+        </div>
+      </div>
+    )
   }
 
   return (
