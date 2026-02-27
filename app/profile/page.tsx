@@ -23,10 +23,19 @@ export default function ProfilePage() {
   const [followers, setFollowers] = useState(0)
   const [following, setFollowing] = useState(0)
 
+  // Notifications
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [friendRequests, setFriendRequests] = useState<any[]>([])
+  const [matchRequests, setMatchRequests] = useState<any[]>([])
+  const [notifActionLoading, setNotifActionLoading] = useState<string | null>(null)
+
+  const notifCount = friendRequests.length + matchRequests.length
+
   // Edit profile modal
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [editName, setEditName] = useState('')
   const [editHand, setEditHand] = useState('Right')
+  const [editSide, setEditSide] = useState('Right')
   const [editSaving, setEditSaving] = useState(false)
 
   // Tab state
@@ -97,15 +106,237 @@ export default function ProfilePage() {
           .order('date', { ascending: false })
           .limit(10)
         setBookings(bks || [])
+
+        // Load friend requests (incoming pending)
+        const { data: pendingFriends } = await supabase
+          .from('friends')
+          .select('*')
+          .eq('addressee_id', user.id)
+          .eq('status', 'pending')
+
+        if (pendingFriends && pendingFriends.length > 0) {
+          const requesterIds = pendingFriends.map((r: any) => r.requester_id)
+          const { data: reqProfiles } = await supabase
+            .from('applications')
+            .select('id, full_name, skill_level, avatar_url')
+            .in('id', requesterIds)
+          const profileMap = new Map((reqProfiles || []).map((p: any) => [p.id, p]))
+          setFriendRequests(
+            pendingFriends
+              .map((r: any) => ({ ...r, player: profileMap.get(r.requester_id) }))
+              .filter((r: any) => r.player)
+          )
+        } else {
+          setFriendRequests([])
+        }
+
+        // Load match join requests (for matches user created)
+        const { data: userMatches } = await supabase
+          .from('matches')
+          .select('id, venue, date, time')
+          .eq('creator_id', user.id)
+          .in('status', ['open', 'full'])
+
+        if (userMatches && userMatches.length > 0) {
+          const mIds = userMatches.map((m: any) => m.id)
+          const matchMap: Record<string, any> = {}
+          userMatches.forEach((m: any) => { matchMap[m.id] = m })
+
+          const { data: pendingPlayers } = await supabase
+            .from('match_players')
+            .select('match_id, player_id')
+            .in('match_id', mIds)
+            .eq('status', 'pending')
+
+          if (pendingPlayers && pendingPlayers.length > 0) {
+            const playerIds = [...new Set(pendingPlayers.map((p: any) => p.player_id))]
+            const { data: playerData } = await supabase
+              .from('applications')
+              .select('id, full_name, skill_level, avatar_url')
+              .in('id', playerIds)
+            const playerMap: Record<string, any> = {}
+            playerData?.forEach((p: any) => { playerMap[p.id] = p })
+
+            setMatchRequests(
+              pendingPlayers.map((p: any) => {
+                const match = matchMap[p.match_id]
+                const player = playerMap[p.player_id]
+                return {
+                  match_id: p.match_id,
+                  player_id: p.player_id,
+                  player_name: player?.full_name || 'Unknown',
+                  player_level: parseFloat(player?.skill_level) || 2.5,
+                  player_avatar: player?.avatar_url,
+                  venue: match?.venue || '',
+                  date: match?.date ? new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '',
+                  time: match?.time || '',
+                }
+              })
+            )
+          } else {
+            setMatchRequests([])
+          }
+        } else {
+          setMatchRequests([])
+        }
       }
       setLoading(false)
     }
     getProfile()
   }, [])
 
+  // Real-time subscription for notifications
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel('profile-notifications')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friends' }, async () => {
+        const { data: pendingFriends } = await supabase
+          .from('friends')
+          .select('*')
+          .eq('addressee_id', userId)
+          .eq('status', 'pending')
+        if (pendingFriends && pendingFriends.length > 0) {
+          const requesterIds = pendingFriends.map((r: any) => r.requester_id)
+          const { data: reqProfiles } = await supabase
+            .from('applications')
+            .select('id, full_name, skill_level, avatar_url')
+            .in('id', requesterIds)
+          const profileMap = new Map((reqProfiles || []).map((p: any) => [p.id, p]))
+          setFriendRequests(
+            pendingFriends
+              .map((r: any) => ({ ...r, player: profileMap.get(r.requester_id) }))
+              .filter((r: any) => r.player)
+          )
+        } else {
+          setFriendRequests([])
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_players' }, async () => {
+        const { data: userMatches } = await supabase
+          .from('matches')
+          .select('id, venue, date, time')
+          .eq('creator_id', userId)
+          .in('status', ['open', 'full'])
+        if (userMatches && userMatches.length > 0) {
+          const mIds = userMatches.map((m: any) => m.id)
+          const matchMap: Record<string, any> = {}
+          userMatches.forEach((m: any) => { matchMap[m.id] = m })
+          const { data: pendingPlayers } = await supabase
+            .from('match_players')
+            .select('match_id, player_id')
+            .in('match_id', mIds)
+            .eq('status', 'pending')
+          if (pendingPlayers && pendingPlayers.length > 0) {
+            const playerIds = [...new Set(pendingPlayers.map((p: any) => p.player_id))]
+            const { data: playerData } = await supabase
+              .from('applications')
+              .select('id, full_name, skill_level, avatar_url')
+              .in('id', playerIds)
+            const playerMap: Record<string, any> = {}
+            playerData?.forEach((p: any) => { playerMap[p.id] = p })
+            setMatchRequests(
+              pendingPlayers.map((p: any) => {
+                const match = matchMap[p.match_id]
+                const player = playerMap[p.player_id]
+                return {
+                  match_id: p.match_id,
+                  player_id: p.player_id,
+                  player_name: player?.full_name || 'Unknown',
+                  player_level: parseFloat(player?.skill_level) || 2.5,
+                  player_avatar: player?.avatar_url,
+                  venue: match?.venue || '',
+                  date: match?.date ? new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '',
+                  time: match?.time || '',
+                }
+              })
+            )
+          } else {
+            setMatchRequests([])
+          }
+        } else {
+          setMatchRequests([])
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
+
+  // Notification actions
+  async function handleAcceptFriend(row: any) {
+    setNotifActionLoading(row.id)
+    const { error } = await supabase.from('friends').update({ status: 'accepted' }).eq('id', row.id)
+    if (error) {
+      showToast('Failed to accept request', 'error')
+    } else {
+      showToast('Friend request accepted!')
+      setFriendRequests((prev) => prev.filter((r) => r.id !== row.id))
+      setFollowers((c) => c + 1)
+    }
+    setNotifActionLoading(null)
+  }
+
+  async function handleDeclineFriend(row: any) {
+    setNotifActionLoading(row.id)
+    const { error } = await supabase.from('friends').delete().eq('id', row.id)
+    if (error) {
+      showToast('Failed to decline request', 'error')
+    } else {
+      showToast('Request declined')
+      setFriendRequests((prev) => prev.filter((r) => r.id !== row.id))
+    }
+    setNotifActionLoading(null)
+  }
+
+  async function handleAcceptMatch(req: any) {
+    const key = `${req.match_id}-${req.player_id}`
+    setNotifActionLoading(key)
+    try {
+      const res = await fetch('/api/accept-player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: req.match_id, player_id: req.player_id }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) {
+        showToast(result.error || 'Failed to accept', 'error')
+      } else {
+        showToast(`${req.player_name} accepted!`)
+        setMatchRequests((prev) => prev.filter((r: any) => !(r.match_id === req.match_id && r.player_id === req.player_id)))
+      }
+    } catch {
+      showToast('Failed to accept', 'error')
+    }
+    setNotifActionLoading(null)
+  }
+
+  async function handleDeclineMatch(req: any) {
+    const key = `${req.match_id}-${req.player_id}`
+    setNotifActionLoading(key)
+    try {
+      const res = await fetch('/api/decline-player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: req.match_id, player_id: req.player_id }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) {
+        showToast(result.error || 'Failed to decline', 'error')
+      } else {
+        showToast('Request declined')
+        setMatchRequests((prev) => prev.filter((r: any) => !(r.match_id === req.match_id && r.player_id === req.player_id)))
+      }
+    } catch {
+      showToast('Failed to decline', 'error')
+    }
+    setNotifActionLoading(null)
+  }
+
   function openEditProfile() {
     setEditName(p?.full_name || '')
     setEditHand(p?.playing_hand || 'Right')
+    setEditSide(p?.preferred_side || 'Right')
     setShowEditProfile(true)
   }
 
@@ -114,12 +345,12 @@ export default function ProfilePage() {
     setEditSaving(true)
     const { error } = await supabase
       .from('applications')
-      .update({ full_name: editName.trim(), playing_hand: editHand })
+      .update({ full_name: editName.trim(), playing_hand: editHand, preferred_side: editSide })
       .eq('id', userId)
     if (error) {
       showToast('Failed to update profile', 'error')
     } else {
-      setP((prev: any) => ({ ...prev, full_name: editName.trim(), playing_hand: editHand }))
+      setP((prev: any) => ({ ...prev, full_name: editName.trim(), playing_hand: editHand, preferred_side: editSide }))
       showToast('Profile updated!')
       setShowEditProfile(false)
     }
@@ -245,11 +476,19 @@ export default function ProfilePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <button className="text-white/40 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Settings">
+            <button
+              onClick={() => setShowNotifications(true)}
+              className="relative text-white/40 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              aria-label="Notifications"
+            >
               <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
+              {notifCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center text-white">
+                  {notifCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -636,6 +875,7 @@ export default function ProfilePage() {
                 { label: 'Matches Lost', value: String(matchesPlayed - matchesWon), color: '#f87171' },
                 { label: 'Win Rate', value: `${winRate}%`, color: '#00ff88' },
                 { label: 'Playing Hand', value: p?.playing_hand || 'Right', color: '#ffffff' },
+                { label: 'Preferred Side', value: p?.preferred_side || 'Right', color: '#ffffff' },
                 { label: 'Followers', value: String(followers), color: '#ffffff' },
                 { label: 'Following', value: String(following), color: '#ffffff' },
               ].map((stat, i) => (
@@ -671,6 +911,156 @@ export default function ProfilePage() {
       </div>
       <BottomNav />
 
+      {/* Notifications Bottom Sheet */}
+      <AnimatePresence>
+        {showNotifications && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-end justify-center"
+            onClick={() => setShowNotifications(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="w-full max-w-[480px] bg-[#111] rounded-t-3xl border-t border-white/10 max-h-[75vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 bg-white/10 rounded-full" />
+              </div>
+              <div className="px-6 pb-8">
+                <div className="flex items-center gap-2 mb-5">
+                  <h3 className="text-lg font-bold">Notifications</h3>
+                  {notifCount > 0 && (
+                    <span className="text-[10px] font-bold bg-red-500/15 text-red-400 px-2 py-0.5 rounded-full">
+                      {notifCount}
+                    </span>
+                  )}
+                </div>
+
+                {notifCount === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                      <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <p className="text-white/30 text-sm">No notifications</p>
+                    <p className="text-white/15 text-xs mt-1">Friend requests and match join requests will appear here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {/* Friend Requests */}
+                    {friendRequests.length > 0 && (
+                      <section>
+                        <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/30 mb-3">Friend Requests</h4>
+                        <div className="space-y-2">
+                          {friendRequests.map((req: any) => (
+                            <div key={req.id} className="bg-white/5 rounded-2xl p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border border-white/10 flex items-center justify-center overflow-hidden">
+                                  {req.player.avatar_url ? (
+                                    <img src={req.player.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                                  ) : (
+                                    <span className="text-xs font-bold text-white/60">{req.player.full_name?.charAt(0)}</span>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold truncate">{req.player.full_name}</p>
+                                  <p className="text-xs text-white/30">Level {parseFloat(req.player.skill_level || '0').toFixed(1)}</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                {notifActionLoading === req.id ? (
+                                  <div className="flex-1 flex justify-center py-2.5">
+                                    <div className="w-4 h-4 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
+                                  </div>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => handleAcceptFriend(req)}
+                                      className="flex-1 py-2.5 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeclineFriend(req)}
+                                      className="flex-1 py-2.5 bg-white/5 text-white/40 font-bold rounded-xl text-xs uppercase tracking-wider border border-white/10"
+                                    >
+                                      Decline
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
+                    {/* Match Join Requests */}
+                    {matchRequests.length > 0 && (
+                      <section>
+                        <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/30 mb-3">Match Join Requests</h4>
+                        <div className="space-y-2">
+                          {matchRequests.map((req: any) => {
+                            const key = `${req.match_id}-${req.player_id}`
+                            return (
+                              <div key={key} className="bg-white/5 rounded-2xl p-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border border-white/10 flex items-center justify-center overflow-hidden">
+                                    {req.player_avatar ? (
+                                      <img src={req.player_avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                                    ) : (
+                                      <span className="text-xs font-bold text-white/60">{req.player_name?.charAt(0)}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold truncate">{req.player_name}</p>
+                                    <p className="text-xs text-white/30">Level {req.player_level.toFixed(1)}</p>
+                                  </div>
+                                </div>
+                                <p className="text-xs text-white/20 mb-3">{req.venue} · {req.date} · {req.time}</p>
+                                <div className="flex gap-2">
+                                  {notifActionLoading === key ? (
+                                    <div className="flex-1 flex justify-center py-2.5">
+                                      <div className="w-4 h-4 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleAcceptMatch(req)}
+                                        className="flex-1 py-2.5 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider"
+                                      >
+                                        Accept
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeclineMatch(req)}
+                                        className="flex-1 py-2.5 bg-white/5 text-white/40 font-bold rounded-xl text-xs uppercase tracking-wider border border-white/10"
+                                      >
+                                        Decline
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </section>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Edit Profile Bottom Sheet */}
       <AnimatePresence>
         {showEditProfile && (
@@ -701,16 +1091,29 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Playing Hand</label>
-                <select
-                  value={editHand}
-                  onChange={(e) => setEditHand(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-[#00ff88] transition-all appearance-none"
-                >
-                  <option value="Right">Right</option>
-                  <option value="Left">Left</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Playing Hand</label>
+                  <select
+                    value={editHand}
+                    onChange={(e) => setEditHand(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-[#00ff88] transition-all appearance-none"
+                  >
+                    <option value="Right">Right</option>
+                    <option value="Left">Left</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase text-gray-500 font-bold ml-1">Preferred Side</label>
+                  <select
+                    value={editSide}
+                    onChange={(e) => setEditSide(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-[#00ff88] transition-all appearance-none"
+                  >
+                    <option value="Right">Right</option>
+                    <option value="Left">Left</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3">
