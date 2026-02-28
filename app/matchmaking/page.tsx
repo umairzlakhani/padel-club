@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -91,6 +91,12 @@ export default function MatchmakingPage() {
   const [newSkillMin, setNewSkillMin] = useState('2.0')
   const [newSkillMax, setNewSkillMax] = useState('3.0')
   const [creating, setCreating] = useState(false)
+
+  // Pull-to-refresh
+  const [pullDistance, setPullDistance] = useState(0)
+  const [pullRefreshing, setPullRefreshing] = useState(false)
+  const touchStartY = useRef(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ visible: true, message, type })
@@ -452,21 +458,81 @@ export default function MatchmakingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
-          <span className="text-white/40 text-sm font-medium">Finding matches...</span>
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+        <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+          {/* Header skeleton */}
+          <div className="pt-[max(3rem,env(safe-area-inset-top))] pb-4 px-6">
+            <div className="h-6 bg-white/10 animate-pulse rounded w-36 mb-2" />
+            <div className="h-3 bg-white/5 animate-pulse rounded w-48" />
+          </div>
+          {/* Filter bar skeleton */}
+          <div className="px-6 flex gap-2 mb-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-9 bg-white/5 animate-pulse rounded-xl flex-1" />
+            ))}
+          </div>
+          {/* Match card skeletons */}
+          <div className="px-6 space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white/5 animate-pulse rounded-2xl h-44" />
+            ))}
+          </div>
+          <BottomNav />
         </div>
       </div>
     )
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    if (scrollRef.current && scrollRef.current.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY
+    }
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!scrollRef.current || scrollRef.current.scrollTop > 0 || pullRefreshing) return
+    const delta = e.touches[0].clientY - touchStartY.current
+    if (delta > 0) {
+      setPullDistance(Math.min(delta * 0.4, 80))
+    }
+  }
+
+  async function handleTouchEnd() {
+    if (pullDistance > 60 && userId) {
+      setPullRefreshing(true)
+      hapticMedium()
+      await loadMatches(userId)
+      setPullRefreshing(false)
+    }
+    setPullDistance(0)
+  }
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto overscroll-y-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24 page-transition">
+        {/* Pull-to-refresh indicator */}
+        {(pullDistance > 0 || pullRefreshing) && (
+          <div className="flex justify-center items-center" style={{ height: pullRefreshing ? 48 : pullDistance }}>
+            <motion.div
+              animate={pullRefreshing ? { rotate: 360 } : { rotate: pullDistance > 60 ? 180 : 0 }}
+              transition={pullRefreshing ? { duration: 0.8, repeat: Infinity, ease: 'linear' } : { duration: 0.2 }}
+              className="w-6 h-6"
+            >
+              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#00ff88" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </motion.div>
+          </div>
+        )}
         {/* Header */}
-        <motion.div className="pt-12 pb-4 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
+        <motion.div className="pt-[max(3rem,env(safe-area-inset-top))] pb-4 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
           <div className="flex items-center justify-between mb-1">
             <h1 className="text-2xl font-bold tracking-tight">Find a Match</h1>
             <div className="flex items-center gap-2">
@@ -508,7 +574,7 @@ export default function MatchmakingPage() {
           {/* Club button */}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={() => setOpenFilter(openFilter === 'club' ? null : 'club')}
+            onClick={() => { hapticLight(); setOpenFilter(openFilter === 'club' ? null : 'club') }}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
               clubFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
             }`}
@@ -522,7 +588,7 @@ export default function MatchmakingPage() {
           {/* Skill button */}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={() => setOpenFilter(openFilter === 'skill' ? null : 'skill')}
+            onClick={() => { hapticLight(); setOpenFilter(openFilter === 'skill' ? null : 'skill') }}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
               skillFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
             }`}
@@ -536,7 +602,7 @@ export default function MatchmakingPage() {
           {/* Date button */}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={() => setOpenFilter(openFilter === 'date' ? null : 'date')}
+            onClick={() => { hapticLight(); setOpenFilter(openFilter === 'date' ? null : 'date') }}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
               dateFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
             }`}
@@ -574,7 +640,7 @@ export default function MatchmakingPage() {
                   {openFilter === 'club' && (
                     <>
                       <button
-                        onClick={() => { setClubFilter('all'); setOpenFilter(null) }}
+                        onClick={() => { hapticLight(); setClubFilter('all'); setOpenFilter(null) }}
                         className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                           clubFilter === 'all' ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
                         }`}
@@ -584,7 +650,7 @@ export default function MatchmakingPage() {
                       {CLUBS.map((club) => (
                         <button
                           key={club.id}
-                          onClick={() => { setClubFilter(club.name); setOpenFilter(null) }}
+                          onClick={() => { hapticLight(); setClubFilter(club.name); setOpenFilter(null) }}
                           className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                             clubFilter === club.name ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
                           }`}
@@ -606,7 +672,7 @@ export default function MatchmakingPage() {
                       ].map((s) => (
                         <button
                           key={s.key}
-                          onClick={() => { setSkillFilter(s.key); setOpenFilter(null) }}
+                          onClick={() => { hapticLight(); setSkillFilter(s.key); setOpenFilter(null) }}
                           className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                             skillFilter === s.key ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
                           }`}
@@ -628,7 +694,7 @@ export default function MatchmakingPage() {
                       ].map((d) => (
                         <button
                           key={d.key}
-                          onClick={() => { setDateFilter(d.key); setOpenFilter(null) }}
+                          onClick={() => { hapticLight(); setDateFilter(d.key); setOpenFilter(null) }}
                           className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                             dateFilter === d.key ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
                           }`}
@@ -711,22 +777,30 @@ export default function MatchmakingPage() {
           </div>
 
           {otherMatches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-                <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+            <motion.div
+              className="flex flex-col items-center justify-center py-16 text-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
+            >
+              <div className="relative mb-4">
+                <div className="absolute inset-0 w-16 h-16 bg-[#00ff88]/10 rounded-2xl blur-xl" />
+                <div className="relative w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/5">
+                  <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-[#00ff88]/30">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
               </div>
-              <p className="text-white/40 text-base font-semibold mb-1">No matches found</p>
-              <p className="text-white/20 text-sm mb-6">Try different filters or create your own</p>
+              <p className="text-white/50 text-base font-semibold mb-1">No matches in your range</p>
+              <p className="text-white/25 text-sm mb-6">Be the first to host one!</p>
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setShowCreate(true)}
-                className="px-6 py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider"
+                onClick={() => { hapticMedium(); setShowCreate(true) }}
+                className="px-6 py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-[#00ff88]/20"
               >
                 Create a Match
               </motion.button>
-            </div>
+            </motion.div>
           ) : (
             <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2">
               {otherMatches.map((match) => {

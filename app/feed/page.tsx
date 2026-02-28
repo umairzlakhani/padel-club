@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
@@ -116,6 +116,12 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [requestedMatchIds, setRequestedMatchIds] = useState<Set<string>>(new Set())
+
+  // Pull-to-refresh
+  const [pullDistance, setPullDistance] = useState(0)
+  const [pullRefreshing, setPullRefreshing] = useState(false)
+  const touchStartY = useRef(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -270,21 +276,84 @@ export default function FeedPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
-          <span className="text-white/40 text-sm font-medium">Loading feed...</span>
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+        <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+          {/* Header skeleton */}
+          <div className="pt-[max(3rem,env(safe-area-inset-top))] pb-4 px-6">
+            <div className="h-6 bg-white/10 animate-pulse rounded w-24 mb-2" />
+            <div className="h-3 bg-white/5 animate-pulse rounded w-32" />
+          </div>
+          {/* Live indicator skeleton */}
+          <div className="px-6 mb-4">
+            <div className="h-8 bg-white/5 animate-pulse rounded-xl w-20" />
+          </div>
+          {/* Feed item skeletons */}
+          <div className="px-6 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-white/5 animate-pulse rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/10 animate-pulse rounded-full flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-white/10 animate-pulse rounded w-3/4" />
+                  <div className="h-3 bg-white/5 animate-pulse rounded w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <BottomNav />
         </div>
       </div>
     )
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    if (scrollRef.current && scrollRef.current.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY
+    }
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!scrollRef.current || scrollRef.current.scrollTop > 0 || pullRefreshing) return
+    const delta = e.touches[0].clientY - touchStartY.current
+    if (delta > 0) {
+      setPullDistance(Math.min(delta * 0.4, 80))
+    }
+  }
+
+  async function handleTouchEndPull() {
+    if (pullDistance > 60) {
+      setPullRefreshing(true)
+      await handleRefresh()
+      setPullRefreshing(false)
+    }
+    setPullDistance(0)
+  }
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto overscroll-y-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEndPull}
+    >
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+        {/* Pull-to-refresh indicator */}
+        {(pullDistance > 0 || pullRefreshing) && (
+          <div className="flex justify-center items-center" style={{ height: pullRefreshing ? 48 : pullDistance }}>
+            <motion.div
+              animate={pullRefreshing ? { rotate: 360 } : { rotate: pullDistance > 60 ? 180 : 0 }}
+              transition={pullRefreshing ? { duration: 0.8, repeat: Infinity, ease: 'linear' } : { duration: 0.2 }}
+              className="w-6 h-6"
+            >
+              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#00ff88" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </motion.div>
+          </div>
+        )}
         {/* Header */}
-        <motion.div className="pt-12 pb-4 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
+        <motion.div className="pt-[max(3rem,env(safe-area-inset-top))] pb-4 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Activity</h1>
@@ -396,16 +465,19 @@ export default function FeedPage() {
 
           {feed.length === 0 && (
             <motion.div className="text-center py-16" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
-              <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+              <div className="relative w-12 h-12 mx-auto mb-3">
+                <div className="absolute inset-0 bg-[#00ff88]/10 rounded-2xl blur-xl" />
+                <div className="relative w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/5">
+                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-[#00ff88]/30">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
               </div>
               <p className="text-white/30 text-sm font-medium">Your friends&apos; activities will appear here</p>
               <p className="text-white/20 text-xs mt-1 mb-4">Follow players to see their updates</p>
               <Link
                 href="/add-player"
-                className="inline-block px-5 py-2.5 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl"
+                className="inline-block px-5 py-2.5 bg-[#00ff88] text-black text-xs font-bold uppercase rounded-xl shadow-lg shadow-[#00ff88]/20"
               >
                 Find Players
               </Link>

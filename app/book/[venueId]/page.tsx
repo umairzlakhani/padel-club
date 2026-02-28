@@ -117,7 +117,7 @@ export default function VenueBookingPage({ params }: { params: Promise<{ venueId
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
           <button
             onClick={() => router.back()}
-            className="absolute top-4 left-4 min-w-[44px] min-h-[44px] bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10"
+            className="absolute top-[max(1rem,env(safe-area-inset-top))] left-4 min-w-[44px] min-h-[44px] bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10"
             aria-label="Go back"
           >
             <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2">

@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { hapticLight } from '@/lib/haptics'
+import { hapticSelectionChanged } from '@/lib/haptics'
 
 const leftTabs = [
   {
@@ -50,7 +50,7 @@ function TabItem({ tab }: { tab: { label: string; href: string; icon: React.Reac
   const pathname = usePathname()
   const isActive = pathname === tab.href
   return (
-    <Link href={tab.href} onClick={() => hapticLight()} aria-label={tab.label}>
+    <Link href={tab.href} onClick={() => hapticSelectionChanged()} aria-label={tab.label}>
       <motion.div
         whileTap={{ scale: 0.85 }}
         className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-colors min-w-[44px] min-h-[44px] ${
@@ -73,7 +73,7 @@ export default function BottomNav() {
         ))}
 
         {/* Center FAB */}
-        <Link href="/matchmaking" onClick={() => hapticLight()} aria-label="Find Match">
+        <Link href="/matchmaking" onClick={() => hapticSelectionChanged()} aria-label="Find Match">
           <motion.div
             whileTap={{ scale: 0.9 }}
             className="w-14 h-14 bg-[#00ff88] rounded-full -mt-7 shadow-lg shadow-[#00ff88]/30 flex items-center justify-center"

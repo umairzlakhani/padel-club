@@ -335,6 +335,7 @@ export default function MatchDetailPage() {
         showToast(result.error || `Failed to ${action}`, 'error')
       } else {
         if (action === 'confirm') hapticSuccess()
+        else hapticError()
         showToast(action === 'confirm' ? 'Score verified! Ratings updated.' : 'Score disputed.')
         await loadMatch(userId)
       }
@@ -380,10 +381,31 @@ export default function MatchDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
-          <span className="text-white/40 text-sm font-medium">Loading match...</span>
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+        <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+          {/* Hero skeleton */}
+          <div className="h-56 bg-white/5 animate-pulse" />
+          {/* Info row skeleton */}
+          <div className="px-6 -mt-6 relative z-10 flex gap-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex-1 bg-white/5 animate-pulse rounded-2xl h-20" />
+            ))}
+          </div>
+          {/* Player slots skeleton */}
+          <div className="px-6 mt-6">
+            <div className="h-4 bg-white/10 animate-pulse rounded w-28 mb-3" />
+            <div className="flex gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="w-16 h-20 bg-white/5 animate-pulse rounded-2xl" />
+              ))}
+            </div>
+          </div>
+          {/* Match info skeleton */}
+          <div className="px-6 mt-6 space-y-3">
+            <div className="h-4 bg-white/10 animate-pulse rounded w-24" />
+            <div className="bg-white/5 animate-pulse rounded-2xl h-32" />
+          </div>
+          <BottomNav />
         </div>
       </div>
     )
@@ -468,7 +490,7 @@ export default function MatchDetailPage() {
           {/* Back button */}
           <button
             onClick={() => router.back()}
-            className="absolute top-12 left-5 w-10 h-10 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10 z-10"
+            className="absolute top-[max(3rem,env(safe-area-inset-top))] left-5 w-10 h-10 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/10 z-10"
           >
             <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -476,7 +498,7 @@ export default function MatchDetailPage() {
           </button>
 
           {/* Status badge */}
-          <div className="absolute top-12 right-5 z-10">
+          <div className="absolute top-[max(3rem,env(safe-area-inset-top))] right-5 z-10">
             <span className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-full backdrop-blur-sm ${statusBadge.className}`}>
               {statusBadge.label}
             </span>
@@ -895,6 +917,7 @@ export default function MatchDetailPage() {
                         <div className="flex-1 relative">
                           <input
                             type="number"
+                            inputMode="numeric"
                             min={0}
                             max={7}
                             value={scoreEntry[setIndex].team_a}
@@ -910,6 +933,7 @@ export default function MatchDetailPage() {
                         <div className="flex-1 relative">
                           <input
                             type="number"
+                            inputMode="numeric"
                             min={0}
                             max={7}
                             value={scoreEntry[setIndex].team_b}

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
+import { hapticLight, hapticMedium } from '@/lib/haptics'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
 
@@ -113,6 +114,7 @@ export default function ProfilePage() {
 
   async function handleSaveProfile() {
     if (!userId || !editName.trim()) return
+    hapticMedium()
     setEditSaving(true)
     const { error } = await supabase
       .from('applications')
@@ -219,10 +221,34 @@ export default function ProfilePage() {
 
   if (loading)
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
-          <span className="text-white/40 text-sm font-medium">Loading profile...</span>
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+        <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+          <div className="pt-[max(3rem,env(safe-area-inset-top))] pb-6 px-6 flex flex-col items-center">
+            {/* Avatar skeleton */}
+            <div className="w-24 h-24 bg-white/5 animate-pulse rounded-full mb-4 mt-16" />
+            {/* Name skeleton */}
+            <div className="h-6 bg-white/10 animate-pulse rounded w-36 mb-2" />
+            <div className="h-3 bg-white/5 animate-pulse rounded w-20 mb-4" />
+            {/* Stats row skeleton */}
+            <div className="flex gap-12 mt-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex flex-col items-center gap-1">
+                  <div className="h-5 bg-white/10 animate-pulse rounded w-8" />
+                  <div className="h-2 bg-white/5 animate-pulse rounded w-14" />
+                </div>
+              ))}
+            </div>
+            {/* Action buttons skeleton */}
+            <div className="flex gap-3 mt-6 w-full">
+              <div className="flex-1 h-12 bg-white/5 animate-pulse rounded-xl" />
+              <div className="flex-1 h-12 bg-white/5 animate-pulse rounded-xl" />
+            </div>
+          </div>
+          {/* Tab bar skeleton */}
+          <div className="px-6 mb-4">
+            <div className="h-10 bg-white/5 animate-pulse rounded-xl" />
+          </div>
+          <BottomNav />
         </div>
       </div>
     )
@@ -239,7 +265,7 @@ export default function ProfilePage() {
       />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24 page-transition">
         {/* ─── Header / Profile Card ─── */}
-        <motion.div className="pt-12 pb-6 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+        <motion.div className="pt-[max(3rem,env(safe-area-inset-top))] pb-6 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
           {/* Back + Settings row */}
           <div className="flex justify-between items-center mb-8">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Go back">
@@ -254,7 +280,7 @@ export default function ProfilePage() {
           <div className="flex flex-col items-center">
             <div className="relative mb-4">
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => { hapticLight(); fileInputRef.current?.click() }}
                 disabled={uploading}
                 className="relative w-24 h-24 rounded-full group cursor-pointer"
               >
@@ -333,7 +359,7 @@ export default function ProfilePage() {
             {(['bookings', 'performance', 'stats'] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => { hapticLight(); setActiveTab(tab) }}
                 className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors relative ${
                   activeTab === tab ? 'text-black' : 'text-white/40'
                 }`}

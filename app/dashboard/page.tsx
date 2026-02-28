@@ -234,7 +234,16 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
     load()
   }, [userId])
 
-  if (loading) return <LoadingSpinner label="Loading dashboard..." />
+  if (loading) return (
+    <div className="pb-24 space-y-4 px-6 pt-4">
+      <div className="h-48 bg-white/5 animate-pulse rounded-2xl" />
+      <div className="grid grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="bg-white/5 animate-pulse rounded-2xl h-20" />)}
+      </div>
+      <div className="h-4 bg-white/10 animate-pulse rounded w-32" />
+      <div className="bg-white/5 animate-pulse rounded-2xl h-40" />
+    </div>
+  )
 
   return (
     <div className={`${inTabs ? 'pt-2' : ''} pb-24`}>
@@ -492,7 +501,15 @@ function CoachDashboard({ userId }: { userId: string }) {
     setSaving(false)
   }
 
-  if (loading) return <LoadingSpinner label="Loading coach dashboard..." />
+  if (loading) return (
+    <div className="pb-24 space-y-4 px-6 pt-4">
+      <div className="h-6 bg-white/10 animate-pulse rounded w-40 mb-2" />
+      <div className="grid grid-cols-3 gap-3">
+        {Array.from({ length: 3 }).map((_, i) => <div key={i} className="bg-white/5 animate-pulse rounded-2xl h-24" />)}
+      </div>
+      <div className="bg-white/5 animate-pulse rounded-2xl h-48" />
+    </div>
+  )
 
   const totalBookings = bookings.length
   const totalRevenue = bookings.reduce((sum, b) => sum + (b.price || 0), 0)
@@ -856,7 +873,16 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
     setSavingCoach(false)
   }
 
-  if (loading) return <LoadingSpinner label="Loading admin dashboard..." />
+  if (loading) return (
+    <div className="pb-24 space-y-4 px-6 pt-4">
+      <div className="h-6 bg-white/10 animate-pulse rounded w-44 mb-2" />
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="bg-white/5 animate-pulse rounded-2xl h-20" />)}
+      </div>
+      <div className="h-4 bg-white/10 animate-pulse rounded w-32 mt-4" />
+      <div className="bg-white/5 animate-pulse rounded-2xl h-40" />
+    </div>
+  )
 
   const pendingCount = applications.filter((a) => a.status !== 'member').length
 
@@ -1207,17 +1233,6 @@ function PendingApprovalScreen() {
   )
 }
 
-// ─── Shared Loading Spinner ─────────────────────────────────────────────────
-
-function LoadingSpinner({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-32">
-      <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
-      <span className="text-white/40 text-sm font-medium mt-3">{label}</span>
-    </div>
-  )
-}
-
 // ─── Main Dashboard Page ────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -1260,10 +1275,26 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#00ff88] border-t-transparent rounded-full animate-spin" />
-          <span className="text-white/40 text-sm font-medium">Loading...</span>
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center overflow-y-auto">
+        <div className="w-full max-w-[480px] min-h-screen relative pb-24">
+          {/* Hero skeleton */}
+          <div className="h-56 bg-white/5 animate-pulse" />
+          {/* Quick Actions skeleton */}
+          <div className="px-6 -mt-6 relative z-10">
+            <div className="grid grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white/5 animate-pulse rounded-2xl h-20" />
+              ))}
+            </div>
+          </div>
+          {/* Content skeleton */}
+          <div className="px-6 mt-6 space-y-4">
+            <div className="h-4 bg-white/10 animate-pulse rounded w-32" />
+            <div className="bg-white/5 animate-pulse rounded-2xl h-40" />
+            <div className="h-4 bg-white/10 animate-pulse rounded w-40" />
+            <div className="bg-white/5 animate-pulse rounded-2xl h-32" />
+          </div>
+          <BottomNav />
         </div>
       </div>
     )
