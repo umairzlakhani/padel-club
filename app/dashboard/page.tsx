@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase, getUserRole, UserRole } from '@/lib/supabase'
 import { IMAGES } from '@/lib/images'
 import { CLUBS } from '@/lib/clubs'
@@ -11,6 +11,9 @@ import { hapticLight } from '@/lib/haptics'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
 import AvailabilityPicker, { type AvailabilityEntry } from '@/app/components/AvailabilityPicker'
+
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
+const fadeUp = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }
 
 // ─── Quick Action Items ─────────────────────────────────────────────────────
 
@@ -289,10 +292,10 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
         </div>
       )}
 
-      <div className="px-6 pt-6">
+      <motion.div className="px-6 pt-6" variants={stagger} initial="hidden" animate="show">
 
       {/* ── Featured Promo Banner ── */}
-      <section className="mb-8">
+      <motion.section className="mb-8" variants={fadeUp}>
         <Link href="/matchmaking" onClick={() => hapticLight()}>
           <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#00ff88]/20 via-[#00ff88]/5 to-transparent border border-[#00ff88]/10 p-5">
             <div className="absolute top-0 right-0 w-32 h-32 bg-[#00ff88]/5 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -310,10 +313,10 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
             </div>
           </div>
         </Link>
-      </section>
+      </motion.section>
 
       {/* ── Quick Actions ── */}
-      <section className="mb-8">
+      <motion.section className="mb-8" variants={fadeUp}>
         <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Quick Actions</h3>
         <div className="grid grid-cols-3 gap-3">
           {QUICK_ACTIONS.map((action, i) => (
@@ -321,12 +324,13 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
               key={action.href}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
+              whileTap={{ scale: 0.95 }}
               transition={{ delay: i * 0.05, type: 'spring', stiffness: 300, damping: 30 }}
             >
               <Link
                 href={action.href}
                 onClick={() => hapticLight()}
-                className="bg-[#111] rounded-2xl border border-white/5 p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform relative overflow-hidden group"
+                className="bg-[#111] rounded-2xl border border-white/5 p-4 flex flex-col items-center gap-2 transition-transform relative overflow-hidden group"
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-[#00ff88]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <span className="text-[#00ff88] relative">{action.icon}</span>
@@ -335,19 +339,19 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
             </motion.div>
           ))}
         </div>
-      </section>
+      </motion.section>
 
       {/* ── Courts — infinite marquee ── */}
-      <section className="mb-8">
+      <motion.section className="mb-8" variants={fadeUp}>
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Courts</h3>
           <Link href="/booking" className="text-[10px] text-[#00ff88] font-semibold uppercase hover:underline">See all</Link>
         </div>
         <CourtsCarousel />
-      </section>
+      </motion.section>
 
       {/* ── Bank Discounts ── */}
-      <section className="mb-8">
+      <motion.section className="mb-8" variants={fadeUp}>
         <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Bank Discounts</h3>
         <div className="space-y-3">
           {BANK_DISCOUNTS.map((deal) => (
@@ -387,9 +391,9 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
             </motion.div>
           ))}
         </div>
-      </section>
+      </motion.section>
 
-      </div>
+      </motion.div>
     </div>
   )
 }
@@ -527,8 +531,9 @@ function CoachDashboard({ userId }: { userId: string }) {
         ))}
       </div>
 
+      <AnimatePresence mode="wait">
       {activeTab === 'schedule' && (
-        <>
+        <motion.div key="schedule" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
           {/* Quick Stats */}
           <div className="grid grid-cols-2 gap-3 mb-8">
             <div className="bg-[#111] rounded-2xl border border-white/5 p-5 text-center">
@@ -578,11 +583,11 @@ function CoachDashboard({ userId }: { userId: string }) {
           >
             Verify Player Level
           </button>
-        </>
+        </motion.div>
       )}
 
       {activeTab === 'profile' && (
-        <div className="space-y-4">
+        <motion.div key="profile" className="space-y-4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
           {!coachRecord ? (
             <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
               <p className="text-white/20 text-sm">No coach profile found. Contact admin.</p>
@@ -628,8 +633,9 @@ function CoachDashboard({ userId }: { userId: string }) {
               </button>
             </>
           )}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -855,9 +861,9 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
   const pendingCount = applications.filter((a) => a.status !== 'member').length
 
   return (
-    <div className={`px-6 ${inTabs ? 'pt-6' : 'pt-12'} pb-24`}>
+    <motion.div className={`px-6 ${inTabs ? 'pt-6' : 'pt-12'} pb-24`} variants={stagger} initial="hidden" animate="show">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
+      <motion.div className="flex items-center gap-3 mb-8" variants={fadeUp}>
         <div>
           <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-1">Admin Portal</p>
           <h1 className="text-2xl font-bold tracking-tight">Match Day HQ</h1>
@@ -865,10 +871,10 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
         <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-[#00ff88]/10 text-[#00ff88] px-3 py-1 rounded-full">
           Admin
         </span>
-      </div>
+      </motion.div>
 
       {/* Stat Cards */}
-      <div className="space-y-3 mb-8">
+      <motion.div className="space-y-3 mb-8" variants={fadeUp}>
         <div className="bg-[#111] rounded-2xl border border-white/5 p-6 flex items-center gap-5">
           <div className="w-12 h-12 rounded-xl bg-[#00ff88]/10 flex items-center justify-center flex-shrink-0">
             <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#00ff88" strokeWidth="1.8">
@@ -904,10 +910,10 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
             <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mt-0.5">Active Matches</p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Applications List */}
-      <section>
+      <motion.section variants={fadeUp}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Applications</h3>
           {pendingCount > 0 && (
@@ -1010,10 +1016,10 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
             ))}
           </div>
         )}
-      </section>
+      </motion.section>
 
       {/* Matches Management */}
-      <section className="mt-8">
+      <motion.section className="mt-8" variants={fadeUp}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">Matches</h3>
           <span className="text-[10px] font-bold text-white/20">{matches.length} total</span>
@@ -1080,10 +1086,10 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
             ))}
           </div>
         )}
-      </section>
+      </motion.section>
 
       {/* Coaches Management */}
-      <section className="mt-8">
+      <motion.section className="mt-8" variants={fadeUp}>
         <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Coaches</h3>
         {coaches.length === 0 ? (
           <div className="bg-[#111] rounded-2xl border border-white/5 p-8 text-center">
@@ -1161,8 +1167,8 @@ function AdminDashboard({ inTabs = false }: { inTabs?: boolean }) {
             ))}
           </div>
         )}
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   )
 }
 
@@ -1310,8 +1316,18 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-            {activeTab === 'profile' && userId && <PlayerDashboard userId={userId} inTabs />}
-            {activeTab === 'admin' && <AdminDashboard inTabs />}
+            <AnimatePresence mode="wait">
+              {activeTab === 'profile' && userId && (
+                <motion.div key="profile-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+                  <PlayerDashboard userId={userId} inTabs />
+                </motion.div>
+              )}
+              {activeTab === 'admin' && (
+                <motion.div key="admin-tab" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+                  <AdminDashboard inTabs />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
 

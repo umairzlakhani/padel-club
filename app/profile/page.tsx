@@ -239,7 +239,7 @@ export default function ProfilePage() {
       />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24 page-transition">
         {/* ─── Header / Profile Card ─── */}
-        <div className="pt-12 pb-6 px-6">
+        <motion.div className="pt-12 pb-6 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
           {/* Back + Settings row */}
           <div className="flex justify-between items-center mb-8">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Go back">
@@ -325,7 +325,7 @@ export default function ProfilePage() {
               Find Players
             </Link>
           </div>
-        </div>
+        </motion.div>
 
         {/* ─── Tab Bar ─── */}
         <div className="px-6 mb-1">

@@ -284,7 +284,7 @@ export default function FeedPage() {
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24">
         {/* Header */}
-        <div className="pt-12 pb-4 px-6">
+        <motion.div className="pt-12 pb-4 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Activity</h1>
@@ -305,7 +305,7 @@ export default function FeedPage() {
               </motion.svg>
             </motion.button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Live indicator */}
         <div className="px-6 mb-4">
@@ -395,7 +395,7 @@ export default function FeedPage() {
           </AnimatePresence>
 
           {feed.length === 0 && (
-            <div className="text-center py-16">
+            <motion.div className="text-center py-16" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
               <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -409,7 +409,7 @@ export default function FeedPage() {
               >
                 Find Players
               </Link>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>

@@ -466,7 +466,7 @@ export default function MatchmakingPage() {
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
       <div className="w-full max-w-[480px] min-h-screen relative pb-24 page-transition">
         {/* Header */}
-        <div className="pt-12 pb-4 px-6">
+        <motion.div className="pt-12 pb-4 px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}>
           <div className="flex items-center justify-between mb-1">
             <h1 className="text-2xl font-bold tracking-tight">Find a Match</h1>
             <div className="flex items-center gap-2">
@@ -501,12 +501,13 @@ export default function MatchmakingPage() {
             <span className="text-white/30 text-sm">Your level:</span>
             <SkillBadge level={userLevel} />
           </div>
-        </div>
+        </motion.div>
 
         {/* Filter Bar — 3 dropdown buttons */}
         <div className="px-6 mb-4 flex gap-2">
           {/* Club button */}
-          <button
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             onClick={() => setOpenFilter(openFilter === 'club' ? null : 'club')}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
               clubFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
@@ -516,10 +517,11 @@ export default function MatchmakingPage() {
             <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
-          </button>
+          </motion.button>
 
           {/* Skill button */}
-          <button
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             onClick={() => setOpenFilter(openFilter === 'skill' ? null : 'skill')}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
               skillFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
@@ -529,10 +531,11 @@ export default function MatchmakingPage() {
             <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
-          </button>
+          </motion.button>
 
           {/* Date button */}
-          <button
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             onClick={() => setOpenFilter(openFilter === 'date' ? null : 'date')}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
               dateFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
@@ -542,7 +545,7 @@ export default function MatchmakingPage() {
             <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
-          </button>
+          </motion.button>
         </div>
 
         {/* Filter Popup */}

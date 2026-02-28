@@ -11,6 +11,9 @@ import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
 import PlayerSlots from '@/app/components/PlayerSlots'
 
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
+const fadeUp = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }
+
 type Player = { id: string; full_name: string; avatar_url?: string | null; skill_level?: number }
 
 export default function MatchDetailPage() {
@@ -442,7 +445,7 @@ export default function MatchDetailPage() {
       <div className="w-full max-w-[480px] min-h-screen relative pb-32 page-transition">
 
         {/* Venue Hero */}
-        <div className="relative w-full aspect-[2.2/1] overflow-hidden">
+        <motion.div className="relative w-full aspect-[2.2/1] overflow-hidden" initial={{ scale: 1.05, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
           {venue?.imageUrl ? (
             <Image
               src={venue.imageUrl}
@@ -484,12 +487,12 @@ export default function MatchDetailPage() {
             <h1 className="text-2xl font-bold drop-shadow-lg">{match.venue}</h1>
             {venue && <p className="text-white/50 text-sm drop-shadow">{venue.location}</p>}
           </div>
-        </div>
+        </motion.div>
 
-        <div className="px-6 pt-5 space-y-6">
+        <motion.div className="px-6 pt-5 space-y-6" variants={stagger} initial="hidden" animate="show">
 
           {/* Date / Time / Skill */}
-          <div className="flex gap-3">
+          <motion.div className="flex gap-3" variants={fadeUp}>
             <div className="flex-1 bg-[#111] rounded-2xl border border-white/5 p-4 text-center">
               <p className="text-[10px] text-white/30 uppercase font-bold tracking-wider mb-1">Date</p>
               <p className="text-sm font-bold">
@@ -506,10 +509,10 @@ export default function MatchDetailPage() {
                 {parseFloat(match.skill_min).toFixed(1)}–{parseFloat(match.skill_max).toFixed(1)}
               </p>
             </div>
-          </div>
+          </motion.div>
 
           {/* Player Slots */}
-          <section>
+          <motion.section variants={fadeUp}>
             <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-4">Players ({match.current_players}/{match.max_players})</h3>
             <div className="bg-[#111] rounded-2xl border border-white/5 p-6">
               <PlayerSlots
@@ -526,11 +529,11 @@ export default function MatchDetailPage() {
                 userRequestStatus={userRequestStatus}
               />
             </div>
-          </section>
+          </motion.section>
 
           {/* Score Result Banner */}
           {hasResult && scores.length > 0 && (
-            <section>
+            <motion.section variants={fadeUp}>
               <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Match Result</h3>
               <div className={`bg-[#111] rounded-2xl border p-5 ${
                 isVerified ? 'border-[#00ff88]/20' : isDisputed ? 'border-red-500/20' : 'border-yellow-400/20'
@@ -609,11 +612,11 @@ export default function MatchDetailPage() {
                   </p>
                 )}
               </div>
-            </section>
+            </motion.section>
           )}
 
           {/* Match Info */}
-          <section>
+          <motion.section variants={fadeUp}>
             <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">Match Info</h3>
             <div className="bg-[#111] rounded-2xl border border-white/5 divide-y divide-white/5">
               <div className="flex justify-between items-center p-4">
@@ -655,8 +658,8 @@ export default function MatchDetailPage() {
                 </>
               )}
             </div>
-          </section>
-        </div>
+          </motion.section>
+        </motion.div>
 
         {/* Bottom Action Button */}
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[480px] px-6 z-30">
