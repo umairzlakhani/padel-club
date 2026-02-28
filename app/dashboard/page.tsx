@@ -64,6 +64,15 @@ const QUICK_ACTIONS = [
     ),
   },
   {
+    label: 'KG Ladder',
+    href: '/ladder',
+    icon: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+    ),
+  },
+  {
     label: 'Leaderboard',
     href: '/leaderboard',
     icon: (
