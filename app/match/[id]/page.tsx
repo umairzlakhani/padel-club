@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { CLUBS } from '@/lib/clubs'
 import { IMAGES } from '@/lib/images'
-import { hapticLight, hapticMedium } from '@/lib/haptics'
+import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
 import PlayerSlots from '@/app/components/PlayerSlots'
@@ -179,6 +179,9 @@ export default function MatchDetailPage() {
       if (!res.ok || result.error) {
         if (res.status === 409) {
           showToast('Already requested', 'error')
+        } else if (res.status === 403 && result.error?.includes('skill')) {
+          hapticError()
+          showToast(result.error, 'error')
         } else {
           showToast(result.error || 'Failed to send request', 'error')
         }
@@ -328,6 +331,7 @@ export default function MatchDetailPage() {
       if (!res.ok || result.error) {
         showToast(result.error || `Failed to ${action}`, 'error')
       } else {
+        if (action === 'confirm') hapticSuccess()
         showToast(action === 'confirm' ? 'Score verified! Ratings updated.' : 'Score disputed.')
         await loadMatch(userId)
       }

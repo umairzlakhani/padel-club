@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
 import { CLUBS } from '@/lib/clubs'
+import { hapticLight, hapticMedium, hapticSuccess, hapticSelectionChanged } from '@/lib/haptics'
 
 const DURATIONS = [30, 60, 90, 120]
 
@@ -76,6 +77,7 @@ export default function VenueBookingPage({ params }: { params: Promise<{ venueId
 
   const handleBookNow = async () => {
     if (!canBook) return
+    hapticMedium()
     const courtList = Array.from(selectedCourts).sort().map((c) => `Court ${c}`).join(', ')
 
     // Post to activity feed
@@ -92,6 +94,7 @@ export default function VenueBookingPage({ params }: { params: Promise<{ venueId
       }).then(() => {})
     }
 
+    hapticSuccess()
     showToast(`Booked ${courtList} at ${venue.name} — ${selectedTimeSlot}, ${selectedDuration}min`)
     setSelectedTimeSlot(null)
     setSelectedCourts(new Set())
@@ -133,7 +136,7 @@ export default function VenueBookingPage({ params }: { params: Promise<{ venueId
             {dates.map((d) => (
               <button
                 key={d.key}
-                onClick={() => setSelectedDate(d.key)}
+                onClick={() => { setSelectedDate(d.key); hapticLight() }}
                 className={`flex flex-col items-center py-3 px-4 rounded-xl border transition-all min-w-[64px] shrink-0 ${
                   selectedDate === d.key
                     ? 'bg-[#00ff88] text-black border-[#00ff88]'
@@ -155,7 +158,7 @@ export default function VenueBookingPage({ params }: { params: Promise<{ venueId
             {DURATIONS.map((dur) => (
               <button
                 key={dur}
-                onClick={() => setSelectedDuration(dur)}
+                onClick={() => { setSelectedDuration(dur); hapticLight() }}
                 className={`flex-1 py-2.5 rounded-xl border text-sm font-bold transition-all ${
                   selectedDuration === dur
                     ? 'bg-[#00ff88] text-black border-[#00ff88]'
@@ -179,7 +182,7 @@ export default function VenueBookingPage({ params }: { params: Promise<{ venueId
                 <button
                   key={slot}
                   disabled={isBooked}
-                  onClick={() => setSelectedTimeSlot(isSelected ? null : slot)}
+                  onClick={() => { setSelectedTimeSlot(isSelected ? null : slot); hapticSelectionChanged() }}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     isSelected
                       ? 'bg-[#00ff88]/10 border-[#00ff88]/40'
@@ -216,7 +219,7 @@ export default function VenueBookingPage({ params }: { params: Promise<{ venueId
               return (
                 <button
                   key={courtNum}
-                  onClick={() => toggleCourt(courtNum)}
+                  onClick={() => { toggleCourt(courtNum); hapticLight() }}
                   className={`p-4 rounded-xl border text-center transition-all ${
                     isSelected
                       ? 'bg-[#00ff88]/10 border-[#00ff88]/40'

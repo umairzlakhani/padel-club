@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { hapticLight, hapticMedium } from '@/lib/haptics'
+import { hapticLight, hapticMedium, hapticSuccess, hapticSelectionChanged } from '@/lib/haptics'
 import Image from 'next/image'
 import Link from 'next/link'
 import BottomNav from '@/app/components/BottomNav'
@@ -177,6 +177,7 @@ export default function BookingPage() {
       }
 
       setBookedSlots(new Set([...bookedSlots, confirmBooking.time]))
+      hapticSuccess()
       showToast(`Court booked at ${selectedClub.name}!`)
       await loadSlots(selectedClub, selectedDate)
     }
@@ -414,7 +415,7 @@ export default function BookingPage() {
                             onClick={() => {
                               if (slot.available && !isMyBooking) {
                                 setConfirmBooking(slot)
-                                hapticLight()
+                                hapticSelectionChanged()
                               }
                             }}
                             className={`p-3 rounded-xl border text-left transition-colors ${

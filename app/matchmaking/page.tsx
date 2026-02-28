@@ -1,12 +1,16 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { hapticLight, hapticMedium } from '@/lib/haptics'
+import { CLUBS } from '@/lib/clubs'
+import { hapticLight, hapticMedium, hapticSuccess } from '@/lib/haptics'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
+
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
+const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }
 
 type PlayerInfo = { id: string; full_name: string; skill_level: number }
 
@@ -23,6 +27,8 @@ type MatchCard = {
   creator_id: string
   creator_name: string
   players: PlayerInfo[]
+  created_at: string
+  user_status: 'none' | 'creator' | 'pending' | 'accepted'
 }
 
 type PendingRequest = {
@@ -43,129 +49,27 @@ function SkillBadge({ level }: { level: number }) {
   )
 }
 
-function SwipeCard({
-  match,
-  isTop,
-  stackIndex,
-  onSwipeRight,
-  onSwipeLeft,
-}: {
-  match: MatchCard
-  isTop: boolean
-  stackIndex: number
-  onSwipeRight: () => void
-  onSwipeLeft: () => void
-}) {
-  const x = useMotionValue(0)
-  const rotate = useTransform(x, [-200, 0, 200], [-15, 0, 15])
-  const greenOpacity = useTransform(x, [0, 100], [0, 1])
-  const redOpacity = useTransform(x, [-100, 0], [1, 0])
-
-  const spotsLeft = match.max_players - match.current_players
-
-  return (
-    <motion.div
-      className="absolute w-full"
-      style={{
-        zIndex: 3 - stackIndex,
-        x: isTop ? x : 0,
-        rotate: isTop ? rotate : 0,
-      }}
-      initial={{ scale: 1 - stackIndex * 0.05, y: stackIndex * 12, opacity: stackIndex < 3 ? 1 : 0 }}
-      animate={{ scale: 1 - stackIndex * 0.05, y: stackIndex * 12, opacity: stackIndex < 3 ? 1 : 0 }}
-      exit={{ x: x.get() > 0 ? 300 : -300, opacity: 0, transition: { duration: 0.3 } }}
-      drag={isTop ? 'x' : false}
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.9}
-      onDragEnd={(_, info) => {
-        if (info.offset.x > 100 || info.velocity.x > 500) {
-          onSwipeRight()
-        } else if (info.offset.x < -100 || info.velocity.x < -500) {
-          onSwipeLeft()
-        }
-      }}
-    >
-      <div className="bg-[#111] rounded-3xl border border-white/5 overflow-hidden shadow-2xl">
-        {/* Swipe indicators */}
-        {isTop && (
-          <>
-            <motion.div
-              className="absolute top-6 right-6 z-10 bg-[#00ff88] rounded-full w-14 h-14 flex items-center justify-center"
-              style={{ opacity: greenOpacity }}
-            >
-              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth="3">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </motion.div>
-            <motion.div
-              className="absolute top-6 left-6 z-10 bg-red-500 rounded-full w-14 h-14 flex items-center justify-center"
-              style={{ opacity: redOpacity }}
-            >
-              <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="3">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </motion.div>
-          </>
-        )}
-
-        <div className="p-6">
-          {/* Venue */}
-          <h3 className="text-xl font-bold mb-1">{match.venue}</h3>
-          <p className="text-white/40 text-sm mb-4">{match.date} · {match.time}</p>
-
-          {/* Skill Range */}
-          <div className="inline-flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 mb-5">
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#00ff88" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <span className="text-xs font-bold text-white/60">Level {match.skill_min.toFixed(1)} – {match.skill_max.toFixed(1)}</span>
-          </div>
-
-          {/* Player Slots */}
-          <div className="flex items-center gap-3 mb-4">
-            {match.players.map((player) => (
-              <div key={player.id} className="flex flex-col items-center gap-0.5">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#00ff88] flex items-center justify-center">
-                  <span className="text-xs font-bold text-white/70">{player.full_name?.charAt(0) || '?'}</span>
-                </div>
-                <span className="text-[8px] text-white/40 font-semibold truncate max-w-[44px]">{player.full_name?.split(' ')[0]}</span>
-              </div>
-            ))}
-            {Array.from({ length: Math.max(0, spotsLeft) }).map((_, i) => (
-              <div key={`empty-${i}`} className="flex flex-col items-center gap-0.5">
-                <div className="w-11 h-11 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
-                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                </div>
-                <span className="text-[8px] text-white/20 font-semibold">Open</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Spots + Creator + View */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-[#00ff88]">{spotsLeft} {spotsLeft === 1 ? 'spot' : 'spots'} left</span>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-white/30">by {match.creator_name}</span>
-              <Link href={`/match/${match.id}`} className="text-[10px] font-bold text-[#00ff88] uppercase tracking-wider hover:underline" onClick={(e) => e.stopPropagation()}>
-                Details →
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
+function StatusBadge({ status }: { status: MatchCard['user_status'] }) {
+  if (status === 'creator') return (
+    <span className="text-[9px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full uppercase">Your Match</span>
   )
+  if (status === 'pending') return (
+    <span className="text-[9px] font-bold bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full uppercase">Pending</span>
+  )
+  if (status === 'accepted') return (
+    <span className="text-[9px] font-bold bg-[#00ff88]/10 text-[#00ff88] px-2 py-0.5 rounded-full uppercase">Joined</span>
+  )
+  return null
 }
+
+type DateFilter = 'all' | 'today' | 'tomorrow' | 'week'
 
 export default function MatchmakingPage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
   const [userLevel, setUserLevel] = useState(2.5)
-  const [cards, setCards] = useState<MatchCard[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [allMatches, setAllMatches] = useState<MatchCard[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
   const [showRequests, setShowRequests] = useState(false)
@@ -173,7 +77,12 @@ export default function MatchmakingPage() {
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
-  const [myMatches, setMyMatches] = useState<MatchCard[]>([])
+
+  // Filters
+  const [clubFilter, setClubFilter] = useState('all')
+  const [skillFilter, setSkillFilter] = useState('all')
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all')
+  const [openFilter, setOpenFilter] = useState<'club' | 'skill' | 'date' | null>(null)
 
   // Create match form state
   const [newDate, setNewDate] = useState('')
@@ -187,166 +96,157 @@ export default function MatchmakingPage() {
     setToast({ visible: true, message, type })
   }, [])
 
-  const loadCards = useCallback(async (uid: string, level: number) => {
-    // Fetch open matches
+  const loadMatches = useCallback(async (uid: string) => {
+    const today = new Date().toISOString().split('T')[0]
+
+    // Fetch ALL open matches where date >= today
     const { data: dbMatches, error } = await supabase
       .from('matches')
       .select('*')
-      .in('status', ['open'])
-      .order('date', { ascending: true })
+      .in('status', ['open', 'full'])
+      .gte('date', today)
+      .order('created_at', { ascending: false })
 
     if (error || !dbMatches) {
       setLoading(false)
       return
     }
 
-    // Get match IDs user already requested/joined
+    // Get user's match_players status for all matches
+    const matchIds = dbMatches.map((m: any) => m.id)
     const { data: myPlays } = await supabase
       .from('match_players')
-      .select('match_id')
+      .select('match_id, status')
       .eq('player_id', uid)
+      .in('match_id', matchIds)
 
-    const myMatchIds = new Set((myPlays || []).map((mp: { match_id: string }) => mp.match_id))
+    const myPlayMap: Record<string, string> = {}
+    ;(myPlays || []).forEach((mp: any) => { myPlayMap[mp.match_id] = mp.status })
 
-    // Filter out: user-created, already joined, full
-    const eligible = dbMatches.filter((m: any) =>
-      m.creator_id !== uid &&
-      !myMatchIds.has(m.id) &&
-      m.current_players < m.max_players
-    )
+    // Fetch all match_players for accepted players
+    const { data: allMpData } = await supabase
+      .from('match_players')
+      .select('match_id, player_id')
+      .in('match_id', matchIds)
+      .eq('status', 'accepted')
 
-    // For each match, fetch players
-    const matchCards: MatchCard[] = await Promise.all(
-      eligible.map(async (m: any) => {
-        const { data: mpData } = await supabase
-          .from('match_players')
-          .select('player_id')
-          .eq('match_id', m.id)
-          .eq('status', 'accepted')
-
-        const playerIds = (mpData || []).map((mp: any) => mp.player_id)
-
-        let players: PlayerInfo[] = []
-        if (playerIds.length > 0) {
-          const { data: playerData } = await supabase
-            .from('applications')
-            .select('id, full_name, skill_level')
-            .in('id', playerIds)
-          players = (playerData || []).map((p: any) => ({
-            id: p.id,
-            full_name: p.full_name,
-            skill_level: parseFloat(p.skill_level) || 2.5,
-          }))
-        }
-
-        const { data: creatorData } = await supabase
-          .from('applications')
-          .select('full_name')
-          .eq('id', m.creator_id)
-          .single()
-
-        return {
-          id: m.id,
-          date: new Date(m.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }),
-          date_raw: m.date,
-          time: m.time,
-          venue: m.venue,
-          skill_min: parseFloat(m.skill_min),
-          skill_max: parseFloat(m.skill_max),
-          max_players: m.max_players,
-          current_players: m.current_players,
-          creator_id: m.creator_id,
-          creator_name: creatorData?.full_name || 'Unknown',
-          players,
-        }
-      })
-    )
-
-    // Sort by skill proximity — matches within user's range first, then by distance from center
-    matchCards.sort((a, b) => {
-      const aInRange = level >= a.skill_min && level <= a.skill_max
-      const bInRange = level >= b.skill_min && level <= b.skill_max
-      if (aInRange && !bInRange) return -1
-      if (!aInRange && bInRange) return 1
-      const aDist = Math.abs(level - (a.skill_min + a.skill_max) / 2)
-      const bDist = Math.abs(level - (b.skill_min + b.skill_max) / 2)
-      return aDist - bDist
+    // Group player IDs by match
+    const matchPlayerIds: Record<string, string[]> = {}
+    ;(allMpData || []).forEach((mp: any) => {
+      if (!matchPlayerIds[mp.match_id]) matchPlayerIds[mp.match_id] = []
+      matchPlayerIds[mp.match_id].push(mp.player_id)
     })
 
-    setCards(matchCards)
-    setCurrentIndex(0)
+    // Collect all unique player IDs
+    const allPlayerIds = [...new Set((allMpData || []).map((mp: any) => mp.player_id))]
+    const allCreatorIds = [...new Set(dbMatches.map((m: any) => m.creator_id))]
+    const uniqueIds = [...new Set([...allPlayerIds, ...allCreatorIds])]
 
-    // Also fetch user's own created matches (open or full)
-    const { data: allUserMatches } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('creator_id', uid)
-      .in('status', ['open', 'full'])
-      .order('date', { ascending: true })
-    const userCreated = allUserMatches || []
-    const myMatchCards: MatchCard[] = await Promise.all(
-      userCreated.map(async (m: any) => {
-        const { data: mpData } = await supabase
-          .from('match_players')
-          .select('player_id')
-          .eq('match_id', m.id)
-          .eq('status', 'accepted')
-
-        const playerIds = (mpData || []).map((mp: any) => mp.player_id)
-        let players: PlayerInfo[] = []
-        if (playerIds.length > 0) {
-          const { data: playerData } = await supabase
-            .from('applications')
-            .select('id, full_name, skill_level')
-            .in('id', playerIds)
-          players = (playerData || []).map((p: any) => ({
-            id: p.id,
-            full_name: p.full_name,
-            skill_level: parseFloat(p.skill_level) || 2.5,
-          }))
-        }
-
-        return {
-          id: m.id,
-          date: new Date(m.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }),
-          date_raw: m.date,
-          time: m.time,
-          venue: m.venue,
-          skill_min: parseFloat(m.skill_min),
-          skill_max: parseFloat(m.skill_max),
-          max_players: m.max_players,
-          current_players: m.current_players,
-          creator_id: m.creator_id,
-          creator_name: 'You',
-          players,
-        }
+    // Batch fetch all player/creator info
+    let playerMap: Record<string, { full_name: string; skill_level: number }> = {}
+    if (uniqueIds.length > 0) {
+      const { data: playerData } = await supabase
+        .from('applications')
+        .select('id, full_name, skill_level')
+        .in('id', uniqueIds)
+      ;(playerData || []).forEach((p: any) => {
+        playerMap[p.id] = { full_name: p.full_name || 'Unknown', skill_level: parseFloat(p.skill_level) || 2.5 }
       })
-    )
-    setMyMatches(myMatchCards)
+    }
+
+    const matchCards: MatchCard[] = dbMatches.map((m: any) => {
+      const pIds = matchPlayerIds[m.id] || []
+      const players: PlayerInfo[] = pIds.map((pid) => ({
+        id: pid,
+        full_name: playerMap[pid]?.full_name || 'Unknown',
+        skill_level: playerMap[pid]?.skill_level || 2.5,
+      }))
+
+      let user_status: MatchCard['user_status'] = 'none'
+      if (m.creator_id === uid) user_status = 'creator'
+      else if (myPlayMap[m.id] === 'accepted') user_status = 'accepted'
+      else if (myPlayMap[m.id] === 'pending') user_status = 'pending'
+
+      return {
+        id: m.id,
+        date: new Date(m.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }),
+        date_raw: m.date,
+        time: m.time,
+        venue: m.venue,
+        skill_min: parseFloat(m.skill_min),
+        skill_max: parseFloat(m.skill_max),
+        max_players: m.max_players,
+        current_players: m.current_players,
+        creator_id: m.creator_id,
+        creator_name: playerMap[m.creator_id]?.full_name || 'Unknown',
+        players,
+        created_at: m.created_at,
+        user_status,
+      }
+    })
+
+    setAllMatches(matchCards)
     setLoading(false)
   }, [])
 
+  // Apply filters
+  const filteredMatches = useMemo(() => {
+    let result = [...allMatches]
+
+    // Club filter
+    if (clubFilter !== 'all') {
+      result = result.filter((m) => m.venue === clubFilter)
+    }
+
+    // Skill filter
+    if (skillFilter !== 'all') {
+      if (skillFilter === 'beginner') result = result.filter((m) => m.skill_min < 3)
+      else if (skillFilter === 'intermediate') result = result.filter((m) => m.skill_min >= 2 && m.skill_max <= 4.5)
+      else if (skillFilter === 'advanced') result = result.filter((m) => m.skill_max >= 4)
+    }
+
+    // Date filter
+    if (dateFilter !== 'all') {
+      const now = new Date()
+      const todayStr = now.toISOString().split('T')[0]
+      const tomorrow = new Date(now)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const tomorrowStr = tomorrow.toISOString().split('T')[0]
+      const weekEnd = new Date(now)
+      weekEnd.setDate(weekEnd.getDate() + 7)
+      const weekEndStr = weekEnd.toISOString().split('T')[0]
+
+      if (dateFilter === 'today') result = result.filter((m) => m.date_raw === todayStr)
+      else if (dateFilter === 'tomorrow') result = result.filter((m) => m.date_raw === tomorrowStr)
+      else if (dateFilter === 'week') result = result.filter((m) => m.date_raw >= todayStr && m.date_raw <= weekEndStr)
+    }
+
+    return result
+  }, [allMatches, clubFilter, skillFilter, dateFilter])
+
+  // Separate my matches and all matches
+  const myMatches = filteredMatches.filter((m) => m.user_status === 'creator')
+  const otherMatches = filteredMatches
+
   const loadPendingRequests = useCallback(async (uid: string) => {
     setRequestsLoading(true)
-    // Get matches created by user
-    const { data: myMatches } = await supabase
+    const { data: userMatches } = await supabase
       .from('matches')
       .select('id, venue, date, time')
       .eq('creator_id', uid)
       .in('status', ['open', 'full'])
 
-    if (!myMatches || myMatches.length === 0) {
+    if (!userMatches || userMatches.length === 0) {
       setPendingRequests([])
       setPendingCount(0)
       setRequestsLoading(false)
       return
     }
 
-    const matchIds = myMatches.map((m: any) => m.id)
+    const matchIds = userMatches.map((m: any) => m.id)
     const matchMap: Record<string, any> = {}
-    myMatches.forEach((m: any) => { matchMap[m.id] = m })
+    userMatches.forEach((m: any) => { matchMap[m.id] = m })
 
-    // Get pending players
     const { data: pending } = await supabase
       .from('match_players')
       .select('match_id, player_id')
@@ -403,7 +303,7 @@ export default function MatchmakingPage() {
           const level = parseFloat(data.skill_level) || 2.5
           setUserLevel(level)
           await Promise.all([
-            loadCards(user.id, level),
+            loadMatches(user.id),
             loadPendingRequests(user.id),
           ])
           return
@@ -412,9 +312,9 @@ export default function MatchmakingPage() {
       setLoading(false)
     }
     init()
-  }, [loadCards, loadPendingRequests])
+  }, [loadMatches, loadPendingRequests])
 
-  // Real-time subscription for match_players
+  // Real-time subscription
   useEffect(() => {
     if (!userId) return
     const channel = supabase
@@ -427,105 +327,60 @@ export default function MatchmakingPage() {
     return () => { supabase.removeChannel(channel) }
   }, [userId, loadPendingRequests])
 
-  async function handleSwipeRight(match: MatchCard) {
-    if (!userId) return
-    hapticMedium()
-
-    // Insert with status='pending'
-    const { error } = await supabase
-      .from('match_players')
-      .insert({ match_id: match.id, player_id: userId, status: 'pending' })
-
-    if (error) {
-      if (error.code === '23505') {
-        showToast('Already requested', 'error')
-      } else {
-        showToast('Failed to send request', 'error')
-      }
-      return
-    }
-
-    // Post to activity feed
-    await supabase.from('activity_feed').insert({
-      user_id: userId,
-      type: 'join_requested',
-      title: `${userName} requested to join a match`,
-      description: `${match.venue} · ${match.date} · ${match.time}`,
-      metadata: { match_id: match.id, venue: match.venue },
-    })
-
-    showToast('Request sent!')
-    setCurrentIndex((i) => i + 1)
-  }
-
-  function handleSwipeLeft() {
-    hapticLight()
-    setCurrentIndex((i) => i + 1)
-  }
-
   async function handleAcceptRequest(req: PendingRequest) {
     if (!userId) return
     hapticMedium()
 
-    // Update status to accepted
-    const { error } = await supabase
-      .from('match_players')
-      .update({ status: 'accepted' })
-      .eq('match_id', req.match_id)
-      .eq('player_id', req.player_id)
+    try {
+      const res = await fetch('/api/accept-player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: req.match_id, player_id: req.player_id }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) {
+        showToast(result.error || 'Failed to accept', 'error')
+        return
+      }
 
-    if (error) {
+      // Activity feed (non-blocking)
+      supabase.from('activity_feed').insert({
+        user_id: req.player_id,
+        type: 'join_accepted',
+        title: `${req.player_name} was accepted to a match`,
+        description: `${req.venue} · ${req.date} · ${req.time}`,
+        metadata: { match_id: req.match_id, venue: req.venue },
+      }).then(() => {})
+
+      showToast(`${req.player_name} accepted!`)
+      setPendingRequests((prev) => prev.filter((r) => !(r.match_id === req.match_id && r.player_id === req.player_id)))
+      setPendingCount((c) => Math.max(0, c - 1))
+      if (userId) loadMatches(userId)
+    } catch {
       showToast('Failed to accept', 'error')
-      return
     }
-
-    // Increment current_players
-    const { data: matchData } = await supabase
-      .from('matches')
-      .select('current_players, max_players')
-      .eq('id', req.match_id)
-      .single()
-
-    if (matchData) {
-      const newCount = matchData.current_players + 1
-      const newStatus = newCount >= matchData.max_players ? 'full' : 'open'
-      await supabase
-        .from('matches')
-        .update({ current_players: newCount, status: newStatus })
-        .eq('id', req.match_id)
-    }
-
-    // Post to activity feed
-    await supabase.from('activity_feed').insert({
-      user_id: req.player_id,
-      type: 'join_accepted',
-      title: `${req.player_name} was accepted to a match`,
-      description: `${req.venue} · ${req.date} · ${req.time}`,
-      metadata: { match_id: req.match_id, venue: req.venue },
-    })
-
-    showToast(`${req.player_name} accepted!`)
-    setPendingRequests((prev) => prev.filter((r) => !(r.match_id === req.match_id && r.player_id === req.player_id)))
-    setPendingCount((c) => Math.max(0, c - 1))
   }
 
   async function handleDeclineRequest(req: PendingRequest) {
     hapticLight()
 
-    const { error } = await supabase
-      .from('match_players')
-      .delete()
-      .eq('match_id', req.match_id)
-      .eq('player_id', req.player_id)
-
-    if (error) {
+    try {
+      const res = await fetch('/api/decline-player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: req.match_id, player_id: req.player_id }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) {
+        showToast(result.error || 'Failed to decline', 'error')
+        return
+      }
+      showToast('Request declined')
+      setPendingRequests((prev) => prev.filter((r) => !(r.match_id === req.match_id && r.player_id === req.player_id)))
+      setPendingCount((c) => Math.max(0, c - 1))
+    } catch {
       showToast('Failed to decline', 'error')
-      return
     }
-
-    showToast('Request declined')
-    setPendingRequests((prev) => prev.filter((r) => !(r.match_id === req.match_id && r.player_id === req.player_id)))
-    setPendingCount((c) => Math.max(0, c - 1))
   }
 
   async function handleCreateMatch() {
@@ -570,12 +425,10 @@ export default function MatchmakingPage() {
         return
       }
 
-      // Add creator as first player (status='accepted' via default)
       await supabase
         .from('match_players')
         .insert({ match_id: newMatch.id, player_id: userId })
 
-      // Post to activity feed
       await supabase.from('activity_feed').insert({
         user_id: userId,
         type: 'match_created',
@@ -584,29 +437,18 @@ export default function MatchmakingPage() {
         metadata: { match_id: newMatch.id, venue: newVenue },
       })
 
-      hapticMedium()
+      hapticSuccess()
       showToast('Match created!')
       setShowCreate(false)
       setNewDate('')
       setNewTime('')
       setNewVenue('')
-      // Navigate to the new match detail page
       router.push(`/match/${newMatch.id}`)
     } catch {
       showToast('Something went wrong', 'error')
     }
     setCreating(false)
   }
-
-  async function handleRefresh() {
-    if (!userId) return
-    hapticLight()
-    setLoading(true)
-    await loadCards(userId, userLevel)
-  }
-
-  const visibleCards = cards.slice(currentIndex, currentIndex + 3)
-  const allSwiped = currentIndex >= cards.length
 
   if (loading) {
     return (
@@ -661,127 +503,286 @@ export default function MatchmakingPage() {
           </div>
         </div>
 
-        {/* Swipe Area */}
-        <div className="px-6 relative" style={{ height: 380 }}>
-          {allSwiped ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-                <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <p className="text-white/40 text-base font-semibold mb-1">No more games nearby</p>
-              <p className="text-white/20 text-sm mb-6">Check back later or create your own</p>
-              <div className="flex gap-3">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowCreate(true)}
-                  className="px-6 py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider"
-                >
-                  Create a Match
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleRefresh}
-                  className="px-6 py-3 bg-white/5 text-white/60 font-bold rounded-xl text-xs uppercase tracking-wider border border-white/10"
-                >
-                  Refresh
-                </motion.button>
-              </div>
-            </div>
-          ) : (
-            <AnimatePresence>
-              {visibleCards.map((match, i) => (
-                <SwipeCard
-                  key={match.id}
-                  match={match}
-                  isTop={i === 0}
-                  stackIndex={i}
-                  onSwipeRight={() => handleSwipeRight(match)}
-                  onSwipeLeft={handleSwipeLeft}
-                />
-              ))}
-            </AnimatePresence>
-          )}
+        {/* Filter Bar — 3 dropdown buttons */}
+        <div className="px-6 mb-4 flex gap-2">
+          {/* Club button */}
+          <button
+            onClick={() => setOpenFilter(openFilter === 'club' ? null : 'club')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+              clubFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
+            }`}
+          >
+            {clubFilter === 'all' ? 'All Clubs' : clubFilter}
+            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Skill button */}
+          <button
+            onClick={() => setOpenFilter(openFilter === 'skill' ? null : 'skill')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+              skillFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
+            }`}
+          >
+            {skillFilter === 'all' ? 'All Levels' : skillFilter === 'beginner' ? 'Beginner' : skillFilter === 'intermediate' ? 'Intermediate' : 'Advanced'}
+            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Date button */}
+          <button
+            onClick={() => setOpenFilter(openFilter === 'date' ? null : 'date')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+              dateFilter !== 'all' ? 'bg-[#00ff88] text-black' : 'bg-white/5 text-white/40 border border-white/5'
+            }`}
+          >
+            {dateFilter === 'all' ? 'All Dates' : dateFilter === 'today' ? 'Today' : dateFilter === 'tomorrow' ? 'Tomorrow' : 'This Week'}
+            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
 
-        {/* Swipe hints */}
-        {!allSwiped && visibleCards.length > 0 && (
-          <div className="flex justify-center gap-8 mt-4 px-6">
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={handleSwipeLeft}
-              className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center"
-            >
-              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => visibleCards[0] && handleSwipeRight(visibleCards[0])}
-              className="w-14 h-14 rounded-full bg-[#00ff88]/10 border border-[#00ff88]/20 flex items-center justify-center"
-            >
-              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#00ff88" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </motion.button>
-          </div>
-        )}
+        {/* Filter Popup */}
+        <AnimatePresence>
+          {openFilter && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/40 z-[90]"
+                onClick={() => setOpenFilter(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="absolute left-6 right-6 z-[91] bg-[#1a1a1a] rounded-2xl border border-white/10 p-4 shadow-2xl"
+                style={{ top: 160 }}
+              >
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3">
+                  {openFilter === 'club' ? 'Select Club' : openFilter === 'skill' ? 'Select Level' : 'Select Date'}
+                </h4>
+                <div className="space-y-1.5">
+                  {openFilter === 'club' && (
+                    <>
+                      <button
+                        onClick={() => { setClubFilter('all'); setOpenFilter(null) }}
+                        className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                          clubFilter === 'all' ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
+                        }`}
+                      >
+                        All Clubs
+                      </button>
+                      {CLUBS.map((club) => (
+                        <button
+                          key={club.id}
+                          onClick={() => { setClubFilter(club.name); setOpenFilter(null) }}
+                          className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                            clubFilter === club.name ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
+                          }`}
+                        >
+                          <span>{club.name}</span>
+                          <span className="text-white/20 text-xs ml-2">{club.location}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
 
-        {/* My Matches */}
+                  {openFilter === 'skill' && (
+                    <>
+                      {[
+                        { key: 'all', label: 'All Levels', desc: 'Show all skill ranges' },
+                        { key: 'beginner', label: 'Beginner', desc: 'Level 1.0 – 2.9' },
+                        { key: 'intermediate', label: 'Intermediate', desc: 'Level 2.0 – 4.5' },
+                        { key: 'advanced', label: 'Advanced', desc: 'Level 4.0+' },
+                      ].map((s) => (
+                        <button
+                          key={s.key}
+                          onClick={() => { setSkillFilter(s.key); setOpenFilter(null) }}
+                          className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                            skillFilter === s.key ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
+                          }`}
+                        >
+                          <span>{s.label}</span>
+                          <span className="text-white/20 text-xs ml-2">{s.desc}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {openFilter === 'date' && (
+                    <>
+                      {[
+                        { key: 'all' as DateFilter, label: 'All Dates', desc: 'No date filter' },
+                        { key: 'today' as DateFilter, label: 'Today', desc: new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }) },
+                        { key: 'tomorrow' as DateFilter, label: 'Tomorrow', desc: new Date(Date.now() + 86400000).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }) },
+                        { key: 'week' as DateFilter, label: 'This Week', desc: 'Next 7 days' },
+                      ].map((d) => (
+                        <button
+                          key={d.key}
+                          onClick={() => { setDateFilter(d.key); setOpenFilter(null) }}
+                          className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                            dateFilter === d.key ? 'bg-[#00ff88]/10 text-[#00ff88]' : 'text-white/60 hover:bg-white/5'
+                          }`}
+                        >
+                          <span>{d.label}</span>
+                          <span className="text-white/20 text-xs ml-2">{d.desc}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* My Matches Section */}
         {myMatches.length > 0 && (
-          <div className="px-6 mt-8 pb-6">
+          <div className="px-6 mb-5">
             <h3 className="text-xs uppercase font-bold tracking-wider text-white/40 mb-3">My Matches</h3>
-            <motion.div
-              initial="hidden"
-              animate="show"
-              variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
-              className="space-y-3"
-            >
+            <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2">
               {myMatches.map((match) => {
                 const spotsLeft = match.max_players - match.current_players
                 return (
-                  <motion.div key={match.id} variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }}>
-                  <Link href={`/match/${match.id}`}>
-                    <motion.div
-                      whileTap={{ scale: 0.98 }}
-                      className="bg-[#111] rounded-2xl border border-white/5 p-4 active:bg-white/5 transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-bold">{match.venue}</h4>
-                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                          spotsLeft === 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
-                        }`}>
-                          {spotsLeft === 0 ? 'Full' : `${spotsLeft} spot${spotsLeft > 1 ? 's' : ''}`}
-                        </span>
-                      </div>
-                      <p className="text-white/40 text-xs mb-3">{match.date} · {match.time}</p>
-                      <div className="flex items-center gap-2">
-                        {match.players.map((player) => (
-                          <div key={player.id} className="flex flex-col items-center gap-0.5">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#00ff88] flex items-center justify-center">
+                  <motion.div key={match.id} variants={fadeUp}>
+                    <Link href={`/match/${match.id}`}>
+                      <motion.div
+                        whileTap={{ scale: 0.98 }}
+                        className="bg-[#111] rounded-2xl border border-blue-500/10 p-4 active:bg-white/5 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-bold">{match.venue}</h4>
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status="creator" />
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                              spotsLeft === 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-[#00ff88]/10 text-[#00ff88]'
+                            }`}>
+                              {spotsLeft === 0 ? 'Full' : `${spotsLeft} spot${spotsLeft > 1 ? 's' : ''}`}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-white/40 text-xs mb-3">{match.date} · {match.time}</p>
+                        <div className="flex items-center gap-2">
+                          {match.players.map((player) => (
+                            <div key={player.id} className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#00ff88] flex items-center justify-center">
                               <span className="text-[10px] font-bold text-white/70">{player.full_name?.charAt(0)}</span>
                             </div>
-                          </div>
-                        ))}
-                        {Array.from({ length: spotsLeft }).map((_, i) => (
-                          <div key={`e-${i}`} className="w-9 h-9 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
-                            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                            </svg>
-                          </div>
-                        ))}
-                        <span className="text-[10px] text-white/30 ml-auto">Tap to manage →</span>
-                      </div>
-                    </motion.div>
-                  </Link>
+                          ))}
+                          {Array.from({ length: Math.max(0, spotsLeft) }).map((_, i) => (
+                            <div key={`e-${i}`} className="w-9 h-9 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
+                              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                            </div>
+                          ))}
+                          <span className="text-[10px] text-white/30 ml-auto">Manage →</span>
+                        </div>
+                      </motion.div>
+                    </Link>
                   </motion.div>
                 )
               })}
             </motion.div>
           </div>
         )}
+
+        {/* All Matches */}
+        <div className="px-6 pb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs uppercase font-bold tracking-wider text-white/40">
+              All Matches
+              <span className="text-white/20 ml-2 normal-case">({otherMatches.length})</span>
+            </h3>
+            <button
+              onClick={() => { if (userId) { setLoading(true); loadMatches(userId) } }}
+              className="text-[10px] text-white/30 font-bold uppercase tracking-wider hover:text-white/50 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {otherMatches.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
+                <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-white/15">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <p className="text-white/40 text-base font-semibold mb-1">No matches found</p>
+              <p className="text-white/20 text-sm mb-6">Try different filters or create your own</p>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowCreate(true)}
+                className="px-6 py-3 bg-[#00ff88] text-black font-bold rounded-xl text-xs uppercase tracking-wider"
+              >
+                Create a Match
+              </motion.button>
+            </div>
+          ) : (
+            <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2">
+              {otherMatches.map((match) => {
+                const spotsLeft = match.max_players - match.current_players
+                return (
+                  <motion.div key={match.id} variants={fadeUp}>
+                    <Link href={`/match/${match.id}`}>
+                      <motion.div
+                        whileTap={{ scale: 0.98 }}
+                        className={`bg-[#111] rounded-2xl border p-4 active:bg-white/5 transition-colors ${
+                          match.user_status === 'creator' ? 'border-blue-500/10' :
+                          match.user_status === 'accepted' ? 'border-[#00ff88]/10' :
+                          match.user_status === 'pending' ? 'border-yellow-500/10' :
+                          'border-white/5'
+                        }`}
+                      >
+                        {/* Top row: venue + badges */}
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-bold truncate flex-1 mr-2">{match.venue}</h4>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <StatusBadge status={match.user_status} />
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                              spotsLeft === 0 ? 'bg-white/5 text-white/30' : 'bg-[#00ff88]/10 text-[#00ff88]'
+                            }`}>
+                              {spotsLeft === 0 ? 'Full' : `${spotsLeft} spot${spotsLeft > 1 ? 's' : ''}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Date/time + skill */}
+                        <div className="flex items-center gap-3 mb-3">
+                          <p className="text-white/40 text-xs">{match.date} · {match.time}</p>
+                          <span className="text-[10px] text-white/20 font-medium">Level {match.skill_min.toFixed(1)}–{match.skill_max.toFixed(1)}</span>
+                        </div>
+
+                        {/* Player slots + creator */}
+                        <div className="flex items-center gap-2">
+                          {match.players.map((player) => (
+                            <div key={player.id} className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-[#00ff88]/60 flex items-center justify-center" title={player.full_name}>
+                              <span className="text-[9px] font-bold text-white/70">{player.full_name?.charAt(0)}</span>
+                            </div>
+                          ))}
+                          {Array.from({ length: Math.max(0, spotsLeft) }).map((_, i) => (
+                            <div key={`e-${i}`} className="w-8 h-8 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
+                              <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                            </div>
+                          ))}
+                          <span className="text-[10px] text-white/20 ml-auto">by {match.creator_name}</span>
+                        </div>
+                      </motion.div>
+                    </Link>
+                  </motion.div>
+                )
+              })}
+            </motion.div>
+          )}
+        </div>
       </div>
 
       {/* Pending Requests Sheet */}
@@ -905,10 +906,9 @@ export default function MatchmakingPage() {
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-[#00ff88]/50 focus:outline-none"
                   >
                     <option value="">Select venue</option>
-                    <option>Legends Arena</option>
-                    <option>Viva Padel</option>
-                    <option>Padelverse</option>
-                    <option>Greenwich Padel</option>
+                    {CLUBS.map((club) => (
+                      <option key={club.id} value={club.name}>{club.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
