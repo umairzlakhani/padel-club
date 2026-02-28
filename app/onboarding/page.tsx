@@ -237,6 +237,16 @@ export default function OnboardingPage() {
     }
   }
 
+  // Auto-advance after selecting an option on single-choice steps
+  function handleOptionAndAdvance(updateFn: () => void) {
+    updateFn()
+    // Small delay so user sees their selection highlight before advancing
+    setTimeout(() => {
+      hapticMedium()
+      setCurrentStep((s) => s + 1)
+    }, 350)
+  }
+
   function handleBack() {
     if (currentStep > 0 && currentStep <= 4) {
       hapticLight()
@@ -443,13 +453,13 @@ export default function OnboardingPage() {
                       label="Never played racket sports"
                       description="Padel is my first racket sport"
                       selected={answers.sportsHistory === 'never'}
-                      onSelect={() => setAnswers((a) => ({ ...a, sportsHistory: 'never' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, sportsHistory: 'never' })))}
                     />
                     <OptionCard
                       label="Yes, I have experience"
                       description="Tennis, Squash, Badminton, or similar"
                       selected={answers.sportsHistory === 'yes'}
-                      onSelect={() => setAnswers((a) => ({ ...a, sportsHistory: 'yes' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, sportsHistory: 'yes' })))}
                     />
                   </>
                 )}
@@ -460,19 +470,19 @@ export default function OnboardingPage() {
                       label="I avoid them"
                       description="I stay away from the glass walls"
                       selected={answers.walls === 'avoid'}
-                      onSelect={() => setAnswers((a) => ({ ...a, walls: 'avoid' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, walls: 'avoid' })))}
                     />
                     <OptionCard
                       label="I can return slow balls"
                       description="Comfortable with basic wall returns"
                       selected={answers.walls === 'slow'}
-                      onSelect={() => setAnswers((a) => ({ ...a, walls: 'slow' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, walls: 'slow' })))}
                     />
                     <OptionCard
                       label="I use them for attack"
                       description="I play off the walls strategically"
                       selected={answers.walls === 'attack'}
-                      onSelect={() => setAnswers((a) => ({ ...a, walls: 'attack' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, walls: 'attack' })))}
                     />
                   </>
                 )}
@@ -483,19 +493,19 @@ export default function OnboardingPage() {
                       label="No"
                       description="I'm still learning net play"
                       selected={answers.net === 'no'}
-                      onSelect={() => setAnswers((a) => ({ ...a, net: 'no' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, net: 'no' })))}
                     />
                     <OptionCard
                       label="Yes, at slow speeds"
                       description="I can sustain controlled rallies"
                       selected={answers.net === 'slow_speeds'}
-                      onSelect={() => setAnswers((a) => ({ ...a, net: 'slow_speeds' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, net: 'slow_speeds' })))}
                     />
                     <OptionCard
                       label="Yes, aggressive net play"
                       description="I dominate at the net with power and placement"
                       selected={answers.net === 'aggressive'}
-                      onSelect={() => setAnswers((a) => ({ ...a, net: 'aggressive' }))}
+                      onSelect={() => handleOptionAndAdvance(() => setAnswers((a) => ({ ...a, net: 'aggressive' })))}
                     />
                   </>
                 )}
@@ -555,19 +565,43 @@ export default function OnboardingPage() {
                       label="Initiation"
                       description="I'm just starting out and learning the basics"
                       selected={answers.selfAssessment === 'initiation'}
-                      onSelect={() => setAnswers((a) => ({ ...a, selfAssessment: 'initiation' }))}
+                      onSelect={() => {
+                        setAnswers((a) => ({ ...a, selfAssessment: 'initiation' }))
+                        setTimeout(() => {
+                          const score = calculateSkillLevel({ ...answers, selfAssessment: 'initiation' })
+                          setCalculatedScore(score)
+                          setCurrentStep(5)
+                          hapticHeavy()
+                        }, 350)
+                      }}
                     />
                     <OptionCard
                       label="Intermediate"
                       description="I can play full games and know the rules well"
                       selected={answers.selfAssessment === 'intermediate'}
-                      onSelect={() => setAnswers((a) => ({ ...a, selfAssessment: 'intermediate' }))}
+                      onSelect={() => {
+                        setAnswers((a) => ({ ...a, selfAssessment: 'intermediate' }))
+                        setTimeout(() => {
+                          const score = calculateSkillLevel({ ...answers, selfAssessment: 'intermediate' })
+                          setCalculatedScore(score)
+                          setCurrentStep(5)
+                          hapticHeavy()
+                        }, 350)
+                      }}
                     />
                     <OptionCard
                       label="Competition"
                       description="I play competitively and train regularly"
                       selected={answers.selfAssessment === 'competition'}
-                      onSelect={() => setAnswers((a) => ({ ...a, selfAssessment: 'competition' }))}
+                      onSelect={() => {
+                        setAnswers((a) => ({ ...a, selfAssessment: 'competition' }))
+                        setTimeout(() => {
+                          const score = calculateSkillLevel({ ...answers, selfAssessment: 'competition' })
+                          setCalculatedScore(score)
+                          setCurrentStep(5)
+                          hapticHeavy()
+                        }, 350)
+                      }}
                     />
                   </>
                 )}
