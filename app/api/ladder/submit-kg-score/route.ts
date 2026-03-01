@@ -58,14 +58,20 @@ function validateKGScores(scores: SetScore[]): string | null {
     const tbWinner = Math.max(s3.team_a, s3.team_b)
     const tbLoser = Math.min(s3.team_a, s3.team_b)
 
-    if (tbWinner < 10) {
-      return 'Super tiebreak: winner must reach at least 10 points'
+    if (s3.team_a === s3.team_b) {
+      return 'Set 3 tiebreak: cannot be a tie'
+    }
+
+    // KG Set 3 options: super tiebreak (first to 10), or regular tiebreak (first to 5 or 7), all win by 2
+    const validTargets = [5, 7, 10]
+    const isStandardTarget = validTargets.some(target => tbWinner >= target && tbLoser < target)
+    const isExtended = tbWinner >= 10 // super tiebreak can go beyond 10
+
+    if (!isStandardTarget && !isExtended) {
+      return 'Set 3: must be a tiebreak to 5, 7, or 10 (win by 2)'
     }
     if (tbWinner - tbLoser < 2) {
-      return 'Super tiebreak: must win by at least 2 points'
-    }
-    if (s3.team_a === s3.team_b) {
-      return 'Super tiebreak: cannot be a tie'
+      return 'Set 3 tiebreak: must win by at least 2 points'
     }
   }
 

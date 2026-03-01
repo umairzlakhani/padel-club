@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS ladder_challenges (
   venue TEXT,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
-  expires_at TIMESTAMPTZ DEFAULT (now() + INTERVAL '72 hours')
+  expires_at TIMESTAMPTZ DEFAULT (now() + INTERVAL '10 days')
 );
 
 -- ─── Ladder History ───────────────────────────────────────────────────────

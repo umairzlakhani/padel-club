@@ -122,7 +122,7 @@ export default function LadderPage() {
           .from('ladder_challenges')
           .select('*, challenger_team:challenger_team_id(id, team_name), defender_team:defender_team_id(id, team_name)')
           .or(`challenger_team_id.eq.${myTeam.id},defender_team_id.eq.${myTeam.id}`)
-          .in('status', ['pending', 'accepted', 'pending_verification'])
+          .in('status', ['accepted', 'pending_verification'])
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -192,11 +192,11 @@ export default function LadderPage() {
     })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error)
-    setToast({ visible: true, message: 'Challenge sent!', type: 'success' })
+    setToast({ visible: true, message: 'Challenge issued — match must be completed within 10 days', type: 'success' })
     if (userId) await loadData(userId)
   }
 
-  async function respondToChallenge(action: 'accept' | 'decline') {
+  async function rescindChallenge() {
     if (!activeChallenge) return
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/ladder/respond-challenge', {
@@ -205,7 +205,7 @@ export default function LadderPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session?.access_token}`,
       },
-      body: JSON.stringify({ challenge_id: activeChallenge.id, action }),
+      body: JSON.stringify({ challenge_id: activeChallenge.id, action: 'rescind' }),
     })
     const json = await res.json()
     if (!res.ok) {
@@ -214,7 +214,29 @@ export default function LadderPage() {
       return
     }
     hapticSuccess()
-    setToast({ visible: true, message: action === 'accept' ? 'Challenge accepted!' : 'Challenge declined', type: 'success' })
+    setToast({ visible: true, message: 'Challenge rescinded (-1 rank penalty)', type: 'error' })
+    if (userId) await loadData(userId)
+  }
+
+  async function forfeitChallenge() {
+    if (!activeChallenge) return
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/ladder/respond-challenge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({ challenge_id: activeChallenge.id, action: 'forfeit' }),
+    })
+    const json = await res.json()
+    if (!res.ok) {
+      setToast({ visible: true, message: json.error, type: 'error' })
+      hapticError()
+      return
+    }
+    hapticSuccess()
+    setToast({ visible: true, message: 'Match forfeited', type: 'error' })
     if (userId) await loadData(userId)
   }
 
@@ -329,9 +351,7 @@ export default function LadderPage() {
             <div className="flex items-center gap-2 mb-2">
               <div className="w-2 h-2 rounded-full bg-[#00ff88] animate-pulse" />
               <span className="text-xs font-bold uppercase tracking-wider text-[#00ff88]">
-                {activeChallenge.status === 'pending' && isDefender && 'Incoming Challenge'}
-                {activeChallenge.status === 'pending' && isChallenger && 'Challenge Sent'}
-                {activeChallenge.status === 'accepted' && 'Challenge Accepted'}
+                {activeChallenge.status === 'accepted' && 'Active Challenge'}
                 {activeChallenge.status === 'pending_verification' && 'Awaiting Verification'}
               </span>
             </div>
@@ -342,27 +362,27 @@ export default function LadderPage() {
               )}
             </p>
 
-            {/* Pending: defender can accept/decline */}
-            {activeChallenge.status === 'pending' && isDefender && (
-              <div className="flex gap-2">
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => respondToChallenge('accept')} className="flex-1 py-2 rounded-full bg-[#00ff88] text-black text-xs font-bold cursor-pointer">
-                  Accept
-                </motion.button>
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => respondToChallenge('decline')} className="flex-1 py-2 rounded-full border border-white/10 text-white/60 text-xs font-bold cursor-pointer">
-                  Decline
-                </motion.button>
-              </div>
-            )}
-
-            {/* Accepted: any participant can submit score */}
+            {/* Accepted: submit score, rescind, or forfeit */}
             {activeChallenge.status === 'accepted' && (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setScoreModalOpen(true)}
-                className="w-full py-2 rounded-full bg-[#00ff88] text-black text-xs font-bold cursor-pointer"
-              >
-                Submit Score
-              </motion.button>
+              <div className="space-y-2">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setScoreModalOpen(true)}
+                  className="w-full py-2 rounded-full bg-[#00ff88] text-black text-xs font-bold cursor-pointer"
+                >
+                  Submit Score
+                </motion.button>
+                <div className="flex gap-2">
+                  {isChallenger && (
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={rescindChallenge} className="flex-1 py-2 rounded-full border border-white/10 text-white/40 text-[10px] font-bold cursor-pointer">
+                      Rescind (-1 rank)
+                    </motion.button>
+                  )}
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={forfeitChallenge} className="flex-1 py-2 rounded-full border border-red-500/20 text-red-400 text-[10px] font-bold cursor-pointer">
+                    Forfeit Match
+                  </motion.button>
+                </div>
+              </div>
             )}
 
             {/* Pending verification: show scores and verify buttons */}

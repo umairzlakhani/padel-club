@@ -110,7 +110,7 @@ export default function KGScoreModal({ isOpen, onClose, challengerName, defender
             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
 
             <h2 className="text-lg font-bold text-white mb-1">Submit Score</h2>
-            <p className="text-xs text-white/40 mb-5">KG Rules: Tiebreak at 5-5 (6-5). Golden deuce: at 40-40, next point wins.</p>
+            <p className="text-xs text-white/40 mb-5">KG Rules: First to 6 (margin of 2). Tiebreak at 5-5 (first to 5, win by 2). Golden deuce on second deuce.</p>
 
             {/* Team Labels */}
             <div className="flex items-center gap-3 mb-4 px-1">
@@ -150,13 +150,13 @@ export default function KGScoreModal({ isOpen, onClose, challengerName, defender
                 onChangeA={setSet3a}
                 onChangeB={setSet3b}
                 max={99}
-                hint="First to 10, win by 2"
+                hint="TB to 5, 7, or 10 (win by 2)"
               />
             )}
 
             {/* Info */}
             <p className="text-[10px] text-white/30 mt-3 mb-4">
-              Sets 1 & 2: First to 6 (tiebreak at 5-5 &rarr; 6-5). Set 3: Super tiebreak to 10, win by 2.
+              Sets 1 & 2: First to 6, margin of 2. Tiebreak at 5-5 (first to 5, win by 2). Set 3: Tiebreak to 5, 7, or 10 — teams decide before starting. Win by 2.
             </p>
 
             {/* Error */}

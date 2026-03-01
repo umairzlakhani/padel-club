@@ -59,13 +59,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Defender team is already in a challenge' }, { status: 400 })
     }
 
-    // Validate rank: challenger must be 1-3 ranks below defender (higher rank number = lower position)
+    // Validate rank: challenger must be 1-7 ranks below defender (higher rank number = lower position)
     const rankDiff = challengerTeam.rank - defenderTeam.rank
-    if (rankDiff < 1 || rankDiff > 3) {
-      return NextResponse.json({ error: 'You can only challenge teams ranked 1-3 spots above you' }, { status: 400 })
+    if (rankDiff < 1 || rankDiff > 7) {
+      return NextResponse.json({ error: 'You can only challenge teams ranked up to 7 spots above you' }, { status: 400 })
     }
 
-    // Create challenge
+    // Check consecutive match restriction: cannot play same team in two consecutive matches
+    const { data: lastChallenge } = await supabase
+      .from('ladder_challenges')
+      .select('challenger_team_id, defender_team_id')
+      .or(`challenger_team_id.eq.${challengerTeam.id},defender_team_id.eq.${challengerTeam.id}`)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (lastChallenge) {
+      const lastOpponent = lastChallenge.challenger_team_id === challengerTeam.id
+        ? lastChallenge.defender_team_id
+        : lastChallenge.challenger_team_id
+      if (lastOpponent === defenderTeam.id) {
+        return NextResponse.json({ error: 'Cannot challenge the same team in consecutive matches. Play another team first.' }, { status: 400 })
+      }
+    }
+
+    // Create challenge — auto-accepted per KG rules
+    const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
     const { data: challenge, error: insertErr } = await supabase
       .from('ladder_challenges')
       .insert({
@@ -73,9 +93,11 @@ export async function POST(req: Request) {
         defender_team_id: defenderTeam.id,
         challenger_rank: challengerTeam.rank,
         defender_rank: defenderTeam.rank,
+        status: 'accepted',
         scheduled_date: scheduled_date || null,
         scheduled_time: scheduled_time || null,
         venue: venue || null,
+        expires_at: expiresAt,
       })
       .select()
       .single()
