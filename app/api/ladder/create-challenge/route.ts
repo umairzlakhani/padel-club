@@ -59,10 +59,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Defender team is already in a challenge' }, { status: 400 })
     }
 
-    // Validate rank: challenger must be 1-7 ranks below defender (higher rank number = lower position)
+    // Validate rank: tiered challenge range based on challenger's rank
+    // Rank 1-25: within 3, Rank 26-40: within 4, Rank 41-75: within 5, Rank 76+: within 7
     const rankDiff = challengerTeam.rank - defenderTeam.rank
-    if (rankDiff < 1 || rankDiff > 7) {
-      return NextResponse.json({ error: 'You can only challenge teams ranked up to 7 spots above you' }, { status: 400 })
+    let maxRange = 3
+    if (challengerTeam.rank > 75) maxRange = 7
+    else if (challengerTeam.rank > 40) maxRange = 5
+    else if (challengerTeam.rank > 25) maxRange = 4
+
+    if (rankDiff < 1 || rankDiff > maxRange) {
+      return NextResponse.json({ error: `At Rank ${challengerTeam.rank}, you can only challenge teams within ${maxRange} spots above you` }, { status: 400 })
     }
 
     // Check consecutive match restriction: cannot play same team in two consecutive matches

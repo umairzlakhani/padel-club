@@ -39,7 +39,12 @@ export default function LadderTeamCard({ team, userTeamRank, userTeamId, userTea
   const isUserTeam = team.id === userTeamId
   const losses = team.matches_played - team.matches_won
 
-  // Can challenge if: target is 1-7 ranks above (lower number), both teams active
+  // Tiered challenge range: Rank 1-25 → 3, 26-40 → 4, 41-75 → 5, 76+ → 7
+  const maxRange = !userTeamRank ? 3
+    : userTeamRank > 75 ? 7
+    : userTeamRank > 40 ? 5
+    : userTeamRank > 25 ? 4 : 3
+
   const canChallenge =
     userTeamRank != null &&
     userTeamId != null &&
@@ -47,7 +52,7 @@ export default function LadderTeamCard({ team, userTeamRank, userTeamId, userTea
     userTeamStatus === 'active' &&
     team.status === 'active' &&
     userTeamRank - team.rank >= 1 &&
-    userTeamRank - team.rank <= 7
+    userTeamRank - team.rank <= maxRange
 
   return (
     <motion.div
