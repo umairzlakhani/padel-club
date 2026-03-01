@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
     }
 
-    const { partner_id } = await req.json()
+    const { partner_id, tier = 'mens-elite', club_id = 'kg' } = await req.json()
 
     if (!partner_id) {
       return NextResponse.json({ error: 'Missing partner_id' }, { status: 400 })
@@ -48,20 +48,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Both users must be approved members' }, { status: 400 })
     }
 
-    // Check neither player is already on a ladder team
+    // Check neither player is already on a team in this tier
     const { data: existingTeams } = await supabase
       .from('ladder_teams')
       .select('id, player1_id, player2_id')
+      .eq('club_id', club_id)
+      .eq('tier', tier)
       .or(`player1_id.eq.${user.id},player2_id.eq.${user.id},player1_id.eq.${partner_id},player2_id.eq.${partner_id}`)
 
     if (existingTeams && existingTeams.length > 0) {
       return NextResponse.json({ error: 'One or both players are already on a ladder team' }, { status: 409 })
     }
 
-    // Get next rank
+    // Get next rank within this tier
     const { data: maxRankRow } = await supabase
       .from('ladder_teams')
       .select('rank')
+      .eq('club_id', club_id)
+      .eq('tier', tier)
       .order('rank', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -83,6 +87,8 @@ export async function POST(req: Request) {
         player1_name: player1?.full_name || null,
         player2_name: player2?.full_name || null,
         team_name: teamName,
+        club_id,
+        tier,
       })
       .select()
       .single()

@@ -59,6 +59,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Defender team is already in a challenge' }, { status: 400 })
     }
 
+    // Validate both teams are in the same tier/club
+    if (challengerTeam.club_id !== defenderTeam.club_id || challengerTeam.tier !== defenderTeam.tier) {
+      return NextResponse.json({ error: 'Both teams must be in the same tier and club' }, { status: 400 })
+    }
+
     // Validate rank: tiered challenge range based on challenger's rank
     // Rank 1-25: within 3, Rank 26-40: within 4, Rank 41-75: within 5, Rank 76+: within 7
     const rankDiff = challengerTeam.rank - defenderTeam.rank
@@ -104,6 +109,8 @@ export async function POST(req: Request) {
         scheduled_time: scheduled_time || null,
         venue: venue || null,
         expires_at: expiresAt,
+        club_id: challengerTeam.club_id,
+        tier: challengerTeam.tier,
       })
       .select()
       .single()

@@ -111,6 +111,8 @@ export async function POST(req: Request) {
       const { data: teamsToShift } = await supabase
         .from('ladder_teams')
         .select('id, rank')
+        .eq('club_id', challengerTeam.club_id)
+        .eq('tier', challengerTeam.tier)
         .gt('rank', oldDefenderRank)
         .lt('rank', oldChallengerRank)
         .order('rank', { ascending: false })
@@ -205,6 +207,8 @@ export async function POST(req: Request) {
         new_challenger_rank: newChallengerRank,
         new_defender_rank: newDefenderRank,
         scores: challenge.scores,
+        club_id: challengerTeam.club_id,
+        tier: challengerTeam.tier,
       })
 
     return NextResponse.json({

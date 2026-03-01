@@ -72,6 +72,8 @@ export async function POST(req: Request) {
       const maxRank = Math.max(...(await supabase
         .from('ladder_teams')
         .select('rank')
+        .eq('club_id', challengerTeam.club_id)
+        .eq('tier', challengerTeam.tier)
         .then(r => (r.data || []).map((t: { rank: number }) => t.rank))), currentRank)
 
       if (currentRank < maxRank) {
@@ -85,6 +87,8 @@ export async function POST(req: Request) {
         await supabase
           .from('ladder_teams')
           .update({ rank: currentRank })
+          .eq('club_id', challengerTeam.club_id)
+          .eq('tier', challengerTeam.tier)
           .eq('rank', newRank)
 
         await supabase
@@ -126,6 +130,8 @@ export async function POST(req: Request) {
       const { data: teamsToShift } = await supabase
         .from('ladder_teams')
         .select('id, rank')
+        .eq('club_id', challengerTeam.club_id)
+        .eq('tier', challengerTeam.tier)
         .gt('rank', oldDefenderRank)
         .lt('rank', oldChallengerRank)
         .order('rank', { ascending: false })
@@ -149,6 +155,8 @@ export async function POST(req: Request) {
         new_challenger_rank: oldDefenderRank,
         new_defender_rank: oldDefenderRank + 1,
         scores: forfeitScores,
+        club_id: challengerTeam.club_id,
+        tier: challengerTeam.tier,
       })
     } else {
       // Defender won — no rank change, +3 points
@@ -164,6 +172,8 @@ export async function POST(req: Request) {
         new_challenger_rank: challengerTeam.rank,
         new_defender_rank: defenderTeam.rank,
         scores: forfeitScores,
+        club_id: challengerTeam.club_id,
+        tier: challengerTeam.tier,
       })
     }
 

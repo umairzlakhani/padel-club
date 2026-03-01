@@ -1,12 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { hapticLight, hapticSuccess, hapticError } from '@/lib/haptics'
+import { getClub, getTier } from '@/lib/ladder-config'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
 import Avatar from '@/app/components/Avatar'
+import LadderBreadcrumb from '@/app/components/LadderBreadcrumb'
 
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
 const fadeUp = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 30 } } }
@@ -18,8 +20,14 @@ type Member = {
   skill_level?: number
 }
 
-export default function LadderRegisterPage() {
+export default function TierRegisterPage() {
   const router = useRouter()
+  const params = useParams<{ clubId: string; tierId: string }>()
+  const { clubId, tierId } = params
+
+  const club = getClub(clubId)
+  const tier = getTier(clubId, tierId)
+
   const [userId, setUserId] = useState<string | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [search, setSearch] = useState('')
@@ -29,12 +37,16 @@ export default function LadderRegisterPage() {
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' })
 
   useEffect(() => {
+    if (!club || !tier) {
+      router.replace('/ladder')
+      return
+    }
+
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/'); return }
       setUserId(user.id)
 
-      // Load approved members (exclude self)
       const { data } = await supabase
         .from('applications')
         .select('id, full_name, avatar_url, skill_level')
@@ -46,7 +58,7 @@ export default function LadderRegisterPage() {
       setLoading(false)
     }
     init()
-  }, [router])
+  }, [router, club, tier])
 
   const filtered = members.filter((m) =>
     m.full_name?.toLowerCase().includes(search.toLowerCase())
@@ -65,7 +77,11 @@ export default function LadderRegisterPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({ partner_id: selectedPartner.id }),
+        body: JSON.stringify({
+          partner_id: selectedPartner.id,
+          tier: tierId,
+          club_id: clubId,
+        }),
       })
       const json = await res.json()
 
@@ -78,7 +94,7 @@ export default function LadderRegisterPage() {
 
       hapticSuccess()
       setToast({ visible: true, message: 'Team registered!', type: 'success' })
-      setTimeout(() => router.push('/ladder'), 1000)
+      setTimeout(() => router.push(`/ladder/${clubId}/${tierId}`), 1000)
     } catch {
       setToast({ visible: true, message: 'Something went wrong', type: 'error' })
       hapticError()
@@ -86,7 +102,8 @@ export default function LadderRegisterPage() {
     }
   }
 
-  // Skeleton
+  if (!club || !tier) return null
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex justify-center">
@@ -111,13 +128,21 @@ export default function LadderRegisterPage() {
       <div className="w-full max-w-[480px] relative" style={{ minHeight: '100dvh' }}>
         {/* Header */}
         <div className="pt-[max(1rem,env(safe-area-inset-top))] px-6 pb-2">
-          <div className="flex items-center gap-3 mb-4">
-            <button onClick={() => router.push('/ladder')} className="cursor-pointer text-white/40 hover:text-white transition-colors">
+          <div className="flex items-center gap-3 mb-1">
+            <button onClick={() => { hapticLight(); router.push(`/ladder/${clubId}/${tierId}`) }} className="cursor-pointer text-white/40 hover:text-white transition-colors">
               <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
             <h1 className="text-2xl font-bold">Register Team</h1>
+          </div>
+          <div className="pl-9">
+            <LadderBreadcrumb segments={[
+              { label: 'Ladder', href: '/ladder' },
+              { label: club.shortName, href: `/ladder/${clubId}` },
+              { label: tier.name, href: `/ladder/${clubId}/${tierId}` },
+              { label: 'Register', href: `/ladder/${clubId}/${tierId}/register` },
+            ]} />
           </div>
         </div>
 
