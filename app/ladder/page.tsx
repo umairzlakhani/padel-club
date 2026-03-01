@@ -88,10 +88,14 @@ export default function LadderPage() {
 
   const loadData = useCallback(async (uid: string) => {
     // Load teams with player info
-    const { data: teamsData } = await supabase
+    const { data: teamsData, error: teamsError } = await supabase
       .from('ladder_teams')
       .select('*')
       .order('rank', { ascending: true })
+
+    if (teamsError) {
+      console.error('Failed to load ladder teams:', teamsError)
+    }
 
     if (teamsData) {
       // Fetch player details for teams that have linked app accounts
