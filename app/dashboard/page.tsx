@@ -64,15 +64,6 @@ const QUICK_ACTIONS = [
     ),
   },
   {
-    label: 'KG Ladder',
-    href: '/ladder',
-    icon: (
-      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-      </svg>
-    ),
-  },
-  {
     label: 'Leaderboard',
     href: '/leaderboard',
     icon: (
@@ -324,6 +315,27 @@ function PlayerDashboard({ userId, inTabs = false }: { userId: string; inTabs?: 
               <p className="text-white/40 text-xs mb-3">Skill-based matchmaking with players in Karachi</p>
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#00ff88] uppercase tracking-wider">
                 Play Now
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </span>
+            </div>
+          </div>
+        </Link>
+      </motion.section>
+
+      {/* ── KG Ladder Promo ── */}
+      <motion.section className="mb-8" variants={fadeUp}>
+        <Link href="/ladder" onClick={() => hapticLight()}>
+          <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#00ff88]/10 via-[#16213e]/40 to-transparent border border-[#00ff88]/10 p-5">
+            <div className="absolute top-0 right-0 w-28 h-28 bg-[#00ff88]/5 rounded-full -translate-y-1/3 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-16 h-16 bg-[#16213e]/30 rounded-full translate-y-1/3 -translate-x-1/3" />
+            <div className="relative">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#00ff88] mb-1">Compete</p>
+              <h3 className="text-lg font-bold mb-1">Karachi Gymkhana Ladder</h3>
+              <p className="text-white/40 text-xs mb-3">Register your doubles team, climb the ranks</p>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#00ff88] uppercase tracking-wider">
+                View Ladder
                 <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
