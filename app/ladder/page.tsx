@@ -27,8 +27,8 @@ type LadderTeam = {
   status: 'active' | 'challenging' | 'defending'
   matches_played: number
   matches_won: number
-  player1_id: string
-  player2_id: string
+  player1_id: string | null
+  player2_id: string | null
   player1: TeamPlayer
   player2: TeamPlayer
 }
@@ -94,19 +94,24 @@ export default function LadderPage() {
       .order('rank', { ascending: true })
 
     if (teamsData) {
-      // Fetch all player details
-      const playerIds = teamsData.flatMap((t: { player1_id: string; player2_id: string }) => [t.player1_id, t.player2_id])
-      const { data: players } = await supabase
-        .from('applications')
-        .select('id, full_name, avatar_url')
-        .in('id', playerIds)
+      // Fetch player details for teams that have linked app accounts
+      const playerIds = teamsData
+        .flatMap((t: { player1_id: string | null; player2_id: string | null }) => [t.player1_id, t.player2_id])
+        .filter(Boolean)
 
-      const playerMap = new Map((players || []).map((p: TeamPlayer) => [p.id, p]))
+      let playerMap = new Map<string, TeamPlayer>()
+      if (playerIds.length > 0) {
+        const { data: players } = await supabase
+          .from('applications')
+          .select('id, full_name, avatar_url')
+          .in('id', playerIds)
+        playerMap = new Map((players || []).map((p: TeamPlayer) => [p.id, p]))
+      }
 
-      const enriched: LadderTeam[] = teamsData.map((t: LadderTeam) => ({
+      const enriched: LadderTeam[] = teamsData.map((t: LadderTeam & { player1_name?: string; player2_name?: string }) => ({
         ...t,
-        player1: playerMap.get(t.player1_id) || { id: t.player1_id, full_name: 'Unknown' },
-        player2: playerMap.get(t.player2_id) || { id: t.player2_id, full_name: 'Unknown' },
+        player1: t.player1_id ? (playerMap.get(t.player1_id) || { id: t.player1_id, full_name: t.player1_name || 'Unknown' }) : { id: '', full_name: t.player1_name || 'Unknown' },
+        player2: t.player2_id ? (playerMap.get(t.player2_id) || { id: t.player2_id, full_name: t.player2_name || 'Unknown' }) : { id: '', full_name: t.player2_name || 'Unknown' },
       }))
 
       setTeams(enriched)

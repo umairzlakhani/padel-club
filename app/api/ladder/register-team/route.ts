@@ -80,6 +80,8 @@ export async function POST(req: Request) {
         rank: nextRank,
         player1_id: user.id,
         player2_id: partner_id,
+        player1_name: player1?.full_name || null,
+        player2_name: player2?.full_name || null,
         team_name: teamName,
       })
       .select()
